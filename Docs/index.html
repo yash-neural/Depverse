@@ -1,0 +1,2194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Depverse — MCP Presentations</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Lora:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F2F1EC;
+    --panel: #E8E6DF;
+    --tan: #E8D9B5;
+    --tan-light: #F0E4C5;
+    --terracotta: #C08763;
+    --terracotta-dark: #A76F4F;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    font-family: 'Lora', Georgia, serif;
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  /* ---------- Deck containers ---------- */
+  .deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    display: none;
+  }
+  .deck.active { display: block; }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    padding: 50px 70px 70px;
+    display: none;
+    flex-direction: column;
+    background: var(--bg);
+  }
+  .slide.active { display: flex; }
+  .slide.scrollable.active { overflow-y: auto; }
+
+  .slide h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 14px;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 19px;
+    max-width: 950px;
+    margin: 0 auto 20px;
+    line-height: 1.55;
+  }
+
+  .body-text {
+    font-size: 18px;
+    line-height: 1.65;
+    max-width: 1000px;
+    margin: 0 auto 14px;
+  }
+  .body-text strong { font-weight: 700; }
+
+  .highlight {
+    background: linear-gradient(transparent 55%, var(--tan) 55%);
+    padding: 0 4px;
+    font-weight: 700;
+    color: var(--terracotta-dark);
+  }
+
+  .inline-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    background: var(--tan-light);
+    padding: 2px 8px;
+    border-radius: 5px;
+  }
+
+  /* Shared code snippet styling */
+  pre.code-snippet,
+  .code-snippet {
+    background: #1a1a1a;
+    color: #F0E4C5;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 10px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .code-snippet .kw  { color: #F0B27A; font-weight: 600; }
+  .code-snippet .str { color: #98C379; }
+  .code-snippet .cls { color: #61AFEF; }
+  .code-snippet .fn  { color: #E5C07B; }
+  .code-snippet .dec { color: #C678DD; }
+  .code-snippet .cmt { color: #7F848E; font-style: italic; }
+
+  /* ---------- Footer + Nav + Switcher ---------- */
+  .brand {
+    position: absolute;
+    bottom: 24px;
+    left: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .page-num {
+    position: absolute;
+    bottom: 24px;
+    right: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .nav {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 50;
+  }
+  .nav button {
+    background: var(--terracotta);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 9px 18px;
+    font-family: 'Lora', serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .nav button:hover { background: var(--terracotta-dark); }
+  .nav button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: var(--terracotta);
+    transition: width 0.3s ease;
+    z-index: 100;
+  }
+
+  .deck-switch {
+    position: fixed;
+    top: 14px;
+    right: 18px;
+    display: flex;
+    gap: 6px;
+    background: var(--panel);
+    border-radius: 999px;
+    padding: 4px;
+    z-index: 80;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .switch-btn {
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-family: 'Lora', serif;
+    font-size: 13px;
+    color: var(--ink);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .switch-btn:hover { background: rgba(192,135,99,0.15); }
+  .switch-btn.active {
+    background: var(--terracotta);
+    color: #fff;
+  }
+
+  /* ---------- Explain MCP deck ---------- */
+  .diagram-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0;
+    min-height: 0;
+  }
+  .diagram-wrap img {
+    max-width: 85%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+
+  .msg-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 0 10px;
+    margin-bottom: 18px;
+  }
+  .msg-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .msg-card img {
+    width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+  .msg-caption {
+    font-size: 15px;
+    line-height: 1.5;
+    margin-top: 12px;
+    text-align: center;
+  }
+  .msg-caption em { font-style: italic; color: var(--muted); }
+
+  .comm-section {
+    max-width: 1050px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .comm-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+  .comm-text {
+    font-size: 15px;
+    line-height: 1.55;
+    margin: 6px auto;
+    max-width: 950px;
+  }
+  .comm-pills {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin: 10px 0;
+  }
+  .comm-pill {
+    background: var(--terracotta);
+    color: #fff;
+    border-radius: 999px;
+    padding: 7px 18px;
+    font-family: 'Lora', serif;
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .comm-pill:last-child {
+    background: var(--tan);
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .flow-layout {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.55fr) 1.45fr;
+    gap: 24px;
+    align-items: start;
+    margin: 0 auto;
+    max-width: 1300px;
+  }
+  .flow-steps {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 14px 14px 14px 10px;
+  }
+  .flow-list {
+    list-style: decimal;
+    padding-left: 24px;
+    margin: 0;
+  }
+  .flow-list li {
+    font-size: 12.5px;
+    line-height: 1.4;
+    margin-bottom: 6px;
+    padding-left: 2px;
+  }
+  .flow-list li strong {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    color: var(--terracotta-dark);
+  }
+  .flow-list li em {
+    font-style: italic;
+    color: var(--ink);
+    background: var(--tan-light);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .flow-image {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .flow-image img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+
+  .qa-block { max-width: 1000px; margin: 0 auto 16px; }
+  .q {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+  .a { font-size: 17px; line-height: 1.6; }
+
+  .callout {
+    background: var(--tan);
+    border-radius: 12px;
+    padding: 18px 24px;
+    margin: 20px auto 0;
+    max-width: 1000px;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+
+  /* ---------- Build MCP deck ---------- */
+  .build-layout {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 30px;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+    flex: 1;
+  }
+  .build-image {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .build-image img {
+    width: 100%;
+    height: auto;
+    max-height: 420px;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+  .build-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .note-card {
+    background: var(--panel);
+    border-left: 5px solid var(--terracotta);
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .note-card-alt {
+    border-left-color: var(--tan);
+    background: var(--tan-light);
+  }
+  .note-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  .note-card p {
+    font-size: 15px;
+    line-height: 1.55;
+    margin-bottom: 8px;
+  }
+  .note-list { margin: 6px 0 0 20px; padding: 0; }
+  .note-list li {
+    font-size: 15px;
+    line-height: 1.55;
+    margin-bottom: 4px;
+  }
+
+  .proj-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr 1fr;
+    gap: 18px;
+    margin: 0 auto 20px;
+    max-width: 1300px;
+  }
+  .proj-col {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .col-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 17px;
+    margin-bottom: 10px;
+    color: var(--terracotta-dark);
+    border-bottom: 2px solid var(--tan);
+    padding-bottom: 6px;
+  }
+  .tree {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre;
+    color: var(--ink);
+  }
+  .proj-list { padding-left: 20px; margin: 0; }
+  .proj-list li {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .proj-list code,
+  .proj-col code,
+  .proj-data code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--tan-light);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .feat {
+    background: var(--tan-light);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .feat-head {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .feat-sym {
+    display: inline-block;
+    background: var(--terracotta);
+    color: #fff;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 13px;
+    margin-right: 6px;
+  }
+  .feat p { font-size: 12.5px; line-height: 1.45; }
+
+  .proj-data {
+    max-width: 1300px;
+    margin: 0 auto;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .proj-note {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+
+  .pkg-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 6px;
+  }
+  .pkg {
+    background: var(--tan-light);
+    border-left: 4px solid var(--terracotta);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .pkg-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .pkg-ver {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .pkg-use {
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .pkg-use code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    background: #fff;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  .setup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto 18px;
+  }
+  .code-panel {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .code-label {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--terracotta-dark);
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--tan);
+  }
+  .code-caption {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+  .code-caption code,
+  .callout-light code,
+  .explain-card code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--tan-light);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  .callout-light {
+    background: var(--tan-light);
+    border-left: 5px solid var(--terracotta);
+    border-radius: 10px;
+    padding: 14px 18px;
+    max-width: 1200px;
+    margin: 0 auto;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .explain-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    max-width: 1100px;
+    margin: 20px auto 0;
+  }
+  .explain-card {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .explain-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .explain-title .num {
+    background: var(--terracotta);
+    color: #fff;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    border-radius: 50%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  .explain-card p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .benefits-panel {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 16px 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .benefits-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 19px;
+    margin-bottom: 10px;
+    color: var(--terracotta-dark);
+  }
+  .benefits-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 18px;
+  }
+  .benefit {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .check {
+    background: var(--terracotta);
+    color: #fff;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    line-height: 22px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .scope-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    max-width: 1200px;
+    margin: 0 auto 18px;
+  }
+  .scope-card {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 14px 18px;
+    border-left: 5px solid var(--terracotta);
+  }
+  .scope-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 17px;
+    margin-bottom: 8px;
+  }
+  .scope-head em {
+    font-style: italic;
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .scope-badge {
+    background: var(--terracotta);
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+    text-align: center;
+    border-radius: 50%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .scope-badge-alt { background: var(--terracotta-dark); }
+  .scope-desc {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .scope-desc code,
+  .anatomy code,
+  .steps-row code,
+  .cmd-ref code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--tan-light);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  .anatomy {
+    background: var(--tan-light);
+    border-radius: 10px;
+    padding: 14px 18px;
+    max-width: 1200px;
+    margin: 0 auto 18px;
+  }
+  .anatomy-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--terracotta-dark);
+    margin-bottom: 8px;
+  }
+
+  .steps-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    max-width: 1200px;
+    margin: 0 auto 18px;
+  }
+  .step-card {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .step-num {
+    background: var(--terracotta);
+    color: #fff;
+    width: 26px;
+    min-width: 26px;
+    height: 26px;
+    line-height: 26px;
+    text-align: center;
+    border-radius: 50%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .step-body strong {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 14px;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .step-body p {
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+
+  .cmd-ref {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 14px 18px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .cmd-ref-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--terracotta-dark);
+    margin-bottom: 10px;
+  }
+  .cmd-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 20px;
+  }
+  .cmd-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .cmd-item code {
+    background: #1a1a1a;
+    color: #F0E4C5;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
+  /* ---------- depverse deck ---------- */
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 28px;
+  }
+  .hero-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 64px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .hero-sub {
+    font-size: 21px;
+    color: var(--muted);
+    max-width: 900px;
+    line-height: 1.5;
+  }
+  .hero-arrow {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 10px;
+  }
+  .hero-node {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 18px 24px;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 20px;
+    border: 2px solid transparent;
+  }
+  .hero-node.accent { background: var(--terracotta); color: #fff; border-color: var(--terracotta-dark); }
+  .hero-node.tan    { background: var(--tan); }
+  .hero-arrow .arr { font-size: 28px; color: var(--terracotta); }
+
+  .before-after {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    max-width: 1200px;
+    margin: 0 auto 18px;
+  }
+  .ba-card {
+    border-radius: 12px;
+    padding: 14px 18px;
+    border-left: 6px solid;
+  }
+  .ba-bad  { background: #fdecea; border-left-color: #c0392b; }
+  .ba-good { background: #eaf6e9; border-left-color: #27ae60; }
+  .ba-label {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  .ba-flow { font-size: 14px; line-height: 1.6; }
+  .ba-flow code {
+    background: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .ba-arrow { color: var(--terracotta-dark); font-weight: 700; margin: 0 4px; }
+  .ba-verdict {
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .value-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    max-width: 1200px;
+    margin: 0 auto 16px;
+  }
+  .value-col { border-radius: 12px; padding: 12px 14px; }
+  .value-hot  { background: #fdf2e9; border-top: 4px solid var(--terracotta); }
+  .value-warm { background: var(--tan-light); border-top: 4px solid var(--tan); }
+  .value-cool { background: var(--panel); border-top: 4px solid var(--muted); }
+  .value-head {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 8px;
+  }
+  .value-row {
+    font-size: 13px;
+    line-height: 1.45;
+    margin-bottom: 6px;
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+  }
+  .value-row code { font-size: 12px; }
+  .tick  { color: #27ae60; font-weight: 700; font-size: 14px; }
+  .cross { color: #c0392b; font-weight: 700; font-size: 14px; }
+
+  .verdict-strip {
+    background: #1a1a1a;
+    color: #F0E4C5;
+    padding: 12px 18px;
+    border-radius: 10px;
+    max-width: 1200px;
+    margin: 0 auto;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .verdict-strip strong { color: var(--terracotta); }
+  .verdict-strip code {
+    background: rgba(255,255,255,0.08);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: #F0E4C5;
+  }
+
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .tool-card {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border-top: 4px solid var(--terracotta);
+  }
+  .tool-card.alt { border-top-color: var(--tan); }
+  .tool-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--terracotta-dark);
+    margin-bottom: 6px;
+  }
+  .tool-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+  .tool-desc { font-size: 13px; line-height: 1.5; }
+
+  .ref-table { max-width: 1200px; margin: 0 auto; }
+  .ref-row {
+    display: grid;
+    grid-template-columns: 1.1fr 1.1fr 1.4fr 1.4fr;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    align-items: start;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .ref-row.head {
+    background: var(--terracotta);
+    color: #fff;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 14px;
+    border-radius: 10px 10px 0 0;
+    border-bottom: none;
+  }
+  .ref-row:nth-child(even):not(.head) { background: var(--panel); }
+  .ref-row code {
+    font-size: 12px;
+    background: var(--tan-light);
+    font-family: 'JetBrains Mono', monospace;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .ref-row.head code { background: transparent; color: #fff; padding: 0; }
+
+  .arch {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-items: center;
+  }
+  .arch-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .arch-box {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 14px 22px;
+    min-width: 170px;
+    text-align: center;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 17px;
+    border: 2px solid transparent;
+  }
+  .arch-box small {
+    display: block;
+    font-family: 'Lora', serif;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .arch-box.claude  { background: var(--tan); }
+  .arch-box.server  { background: var(--terracotta); color: #fff; }
+  .arch-box.npm     { background: #cb3837; color: #fff; }
+  .arch-box.gh      { background: #1a1a1a; color: #fff; }
+  .arch-arrow { font-size: 24px; color: var(--terracotta); font-weight: 700; }
+  .arch-label {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: -10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .setup-steps {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    max-width: 1200px;
+    margin: 0 auto 18px;
+  }
+  .step-box {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 14px 18px;
+    border-left: 5px solid var(--terracotta);
+  }
+  .step-head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .step-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 17px;
+  }
+
+  .examples {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .example {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+  .example-q {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 6px;
+    color: var(--terracotta-dark);
+  }
+  .example-a { font-size: 13px; line-height: 1.5; }
+  .example-a code {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--tan-light);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck-switch">
+  <button class="switch-btn active" data-deck="explain">Explain MCP</button>
+  <button class="switch-btn" data-deck="build">Build MCP</button>
+  <button class="switch-btn" data-deck="depverse">depverse</button>
+</div>
+
+<!-- =========================================================== -->
+<!-- DECK 1 — Explain MCP                                          -->
+<!-- =========================================================== -->
+<div class="deck active" data-deck="explain">
+
+  <section class="slide active" data-slide="1">
+    <h1>Model Context Protocol (MCP)</h1>
+    <p class="subtitle">
+      A <strong>communication layer</strong> that provides Claude with context and tools
+      — without writing tedious integration code.
+    </p>
+
+    <div class="diagram-wrap">
+      <img src="assets/Introducing_MCP_01.png" alt="MCP architecture diagram" />
+    </div>
+
+    <p class="body-text" style="text-align: center; margin-top: 10px;">
+      An <strong>MCP Client</strong> (your server) connects to <strong>MCP Servers</strong>
+      that contain tools, prompts, and resources. Each MCP Server acts as an interface to
+      some outside service.
+    </p>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">1 / 6</div>
+  </section>
+
+  <section class="slide" data-slide="2">
+    <h1>How MCP Works</h1>
+    <p class="subtitle">
+      MCP shifts the burden of tool definitions and execution onto <strong>MCP Servers</strong>.
+    </p>
+
+    <div class="diagram-wrap">
+      <img src="assets/Introducing_MCP_02.png" alt="How MCP works diagram" />
+    </div>
+
+    <p class="body-text" style="text-align: center; margin-top: 10px;">
+      Instead of authoring all those GitHub tools yourself, an MCP Server for GitHub
+      handles it — wrapping functionality and exposing it as a <strong>standardized set of tools</strong>.
+    </p>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">2 / 6</div>
+  </section>
+
+  <section class="slide" data-slide="3">
+    <h1>MCP Servers Explained</h1>
+    <p class="subtitle">
+      <strong>MCP Servers</strong> provide access to data or functionality implemented by some outside service.
+    </p>
+
+    <div class="diagram-wrap">
+      <img src="assets/Introducing_MCP_03.png" alt="MCP Server for GitHub example" />
+    </div>
+
+    <p class="body-text" style="text-align: center; margin-top: 10px;">
+      The MCP Server for GitHub contains tools like <strong>get_repos()</strong> and connects
+      directly to GitHub's API. Your server talks to the MCP server, which handles all the
+      GitHub-specific details.
+    </p>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">3 / 6</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="4">
+    <h1>MCP Message Types</h1>
+    <p class="subtitle">
+      Once connected, the client and server exchange specific message types defined in the MCP specification.
+    </p>
+
+    <div class="msg-grid">
+      <div class="msg-card">
+        <img src="assets/MCP_Clients_04.png" alt="ListTools request and result" />
+        <p class="msg-caption">
+          <strong>ListToolsRequest / ListToolsResult</strong> — the client asks the server
+          <em>"what tools do you provide?"</em> and gets back a list of available tools.
+        </p>
+      </div>
+      <div class="msg-card">
+        <img src="assets/MCP_Clients_05.png" alt="CallTool request and result" />
+        <p class="msg-caption">
+          <strong>CallToolRequest / CallToolResult</strong> — the client asks the server to
+          run a specific tool with given arguments, then receives the results.
+        </p>
+      </div>
+    </div>
+
+    <div class="comm-section">
+      <div class="comm-title">MCP's Communication</div>
+      <p class="comm-text">
+        These messages are transport-agnostic — they can travel over any channel that
+        reliably carries JSON-RPC. In practice, MCP implementations use:
+      </p>
+      <div class="comm-pills">
+        <span class="comm-pill">HTTP</span>
+        <span class="comm-pill">WebSockets</span>
+        <span class="comm-pill">stdio</span>
+        <span class="comm-pill">+ other network protocols</span>
+      </div>
+      <p class="comm-text">You're free to pick whichever transport fits your setup.</p>
+      <p class="comm-text">Local servers often use <strong>stdio</strong>.</p>
+      <p class="comm-text">Remote servers typically use <strong>HTTP</strong> or <strong>WebSockets</strong>.</p>
+      <p class="comm-text">The message contract stays the same.</p>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">4 / 6</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="5">
+    <h1>How MCP Works — End-to-End Flow</h1>
+    <p class="subtitle">
+      A user asks <em>"What repositories do I have?"</em> — here's how the query flows through every piece of the system.
+    </p>
+
+    <div class="flow-layout">
+      <div class="flow-steps">
+        <ol class="flow-list">
+          <li><strong>User Query</strong> — the user submits their question to your server.</li>
+          <li><strong>Tool Discovery</strong> — your server needs to know what tools are available to send to Claude.</li>
+          <li><strong>List Tools Exchange</strong> — your server asks the MCP client for available tools.</li>
+          <li><strong>MCP Communication</strong> — the MCP client sends a <em>ListToolsRequest</em> to the MCP server and receives a <em>ListToolsResult</em>.</li>
+          <li><strong>Claude Request</strong> — your server sends the user's query plus the available tools to Claude.</li>
+          <li><strong>Tool Use Decision</strong> — Claude decides it needs to call a tool to answer the question.</li>
+          <li><strong>Tool Execution Request</strong> — your server asks the MCP client to run the tool Claude specified.</li>
+          <li><strong>External API Call</strong> — the MCP client sends a <em>CallToolRequest</em> to the MCP server, which makes the actual GitHub API call.</li>
+          <li><strong>Results Flow Back</strong> — GitHub responds with repository data, which flows back through the MCP server as a <em>CallToolResult</em>.</li>
+          <li><strong>Tool Result to Claude</strong> — your server sends the tool results back to Claude.</li>
+          <li><strong>Final Response</strong> — Claude formulates a final answer using the repository data.</li>
+          <li><strong>User Gets Answer</strong> — your server delivers Claude's response back to the user.</li>
+        </ol>
+      </div>
+
+      <div class="flow-image">
+        <img src="assets/MCP_Clients_06.png" alt="Full MCP request flow sequence diagram" />
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top: 20px;">
+      Understanding this flow is crucial — you'll see all these pieces when building your
+      own MCP clients and servers in the upcoming sections.
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">5 / 6</div>
+  </section>
+
+  <section class="slide" data-slide="6">
+    <h1>Common Questions</h1>
+
+    <div style="max-width: 1050px; margin: 10px auto 0; overflow-y: auto; flex: 1;">
+      <div class="qa-block">
+        <div class="q">Who authors MCP Servers?</div>
+        <div class="a">
+          Anyone can create an MCP server implementation. Often, service providers themselves
+          will make their own official implementations — for example, AWS might release an
+          official MCP server with tools for their various services.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="q">How is this different from calling APIs directly?</div>
+        <div class="a">
+          MCP servers provide tool schemas and functions already defined for you. If you
+          call an API directly, you'll be authoring those tool definitions on your own.
+          MCP saves you that implementation work.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="q">Isn't MCP just the same as tool use?</div>
+        <div class="a">
+          A common misconception. MCP servers and tool use are <strong>complementary</strong>
+          but different concepts. MCP servers provide tool schemas and functions already
+          defined for you; tool use is how Claude actually calls those tools. The key
+          difference is <strong>who does the work</strong> — with MCP, someone else has
+          already implemented the tools for you.
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>The benefit:</strong> instead of maintaining a complex set of integrations
+        yourself, you can leverage MCP servers that handle the heavy lifting of connecting
+        to external services.
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">6 / 6</div>
+  </section>
+
+</div>
+
+<!-- =========================================================== -->
+<!-- DECK 2 — Build MCP                                            -->
+<!-- =========================================================== -->
+<div class="deck" data-deck="build">
+
+  <section class="slide active scrollable" data-slide="1">
+    <h1>Building an MCP Server</h1>
+    <p class="subtitle">
+      Writing an MCP server becomes much simpler when you use the official
+      <strong>Python SDK</strong> — define tools with decorators and let the SDK handle
+      the JSON schema heavy lifting.
+    </p>
+
+    <div class="build-layout">
+      <div class="build-image">
+        <img src="assets/MCP_07.png" alt="Our MCP Server with document tools" />
+      </div>
+
+      <div class="build-notes">
+        <div class="note-card">
+          <div class="note-title">Document Management Server</div>
+          <p>In this example, we're creating a server with two core tools:</p>
+          <ul class="note-list">
+            <li><strong>Read a document</strong> — fetch content by document ID.</li>
+            <li><strong>Update a document</strong> — overwrite content for a given ID.</li>
+          </ul>
+        </div>
+
+        <div class="note-card note-card-alt">
+          <div class="note-title">In-memory Storage</div>
+          <p>
+            All documents live in a simple Python <strong>dictionary</strong> —
+            <em>keys</em> are document IDs, <em>values</em> are the document content.
+          </p>
+<pre class="code-snippet">docs = {
+  "document.pdf":     "...",
+  "spreadsheet.xlsx": "...",
+  "report.txt":       "...",
+  "spec.md":          "...",
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">1 / 6</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="2">
+    <h1>Project Walkthrough — <code class="inline-code">cli_project</code></h1>
+    <p class="subtitle">
+      A CLI chat app where Claude talks to a local <strong>FastMCP</strong> document server via <strong>stdio</strong>.
+    </p>
+
+    <div class="proj-layout">
+      <div class="proj-col">
+        <div class="col-title">File Structure</div>
+        <pre class="tree">cli_project/
+├── main.py            ← entry point: wires everything
+├── mcp_server.py      ← FastMCP server (docs dict)
+├── mcp_client.py      ← MCPClient wrapper (stdio)
+├── .env               ← ANTHROPIC_API_KEY, CLAUDE_MODEL
+└── core/
+    ├── claude.py      ← Anthropic SDK wrapper
+    ├── chat.py        ← base chat loop
+    ├── cli_chat.py    ← @mentions + /commands
+    ├── cli.py         ← prompt-toolkit UI
+    └── tools.py       ← tool-call dispatch</pre>
+      </div>
+
+      <div class="proj-col">
+        <div class="col-title">How It Runs</div>
+        <ol class="proj-list">
+          <li><strong>main.py</strong> loads <code>.env</code>, creates a <code>Claude</code> service, then spawns <code>mcp_server.py</code> as a subprocess over stdio.</li>
+          <li><strong>MCPClient</strong> opens a session, calls <code>list_tools()</code> / <code>list_prompts()</code> to discover what the server offers.</li>
+          <li><strong>CliChat</strong> takes user input, resolves <code>@docs</code> and <code>/commands</code>, sends messages to Claude.</li>
+          <li>Claude decides to <strong>call a tool</strong> → <code>MCPClient.call_tool()</code> → the server runs it on the in-memory <code>docs</code> dict.</li>
+          <li>Tool result flows back to Claude → final answer → displayed in the CLI.</li>
+        </ol>
+      </div>
+
+      <div class="proj-col">
+        <div class="col-title">Key Features</div>
+        <div class="feat">
+          <div class="feat-head"><span class="feat-sym">@</span> Document Mentions</div>
+          <p>Type <code>@deposition.md</code> to inline that document's content into Claude's context.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-head"><span class="feat-sym">/</span> Slash Commands</div>
+          <p>Type <code>/summarize report.pdf</code> to invoke a <strong>prompt</strong> defined by the MCP server.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-head"><span class="feat-sym">🛠</span> Tool Use</div>
+          <p>Claude autonomously calls <code>read_doc</code> / <code>edit_doc</code> tools exposed by the server.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="proj-data">
+      <div class="col-title" style="margin-bottom: 8px;">The Data — <code class="inline-code">docs</code> dictionary in mcp_server.py</div>
+<pre class="code-snippet">docs = {
+    "deposition.md":  "This deposition covers the testimony of Angela Smith, P.E.",
+    "report.pdf":     "The report details the state of a 20m condenser tower.",
+    "financials.docx":"These financials outline the project's budget and expenditures.",
+    "outlook.pdf":    "This document presents the projected future performance of the system.",
+    "plan.md":        "The plan outlines the steps for the project's implementation.",
+    "spec.txt":       "These specifications define the technical requirements for the equipment.",
+}</pre>
+    </div>
+
+    <div class="proj-data" style="margin-top: 16px;">
+      <div class="col-title" style="margin-bottom: 8px;">Python Packages &mdash; <code class="inline-code">pyproject.toml</code></div>
+      <div class="pkg-grid">
+        <div class="pkg">
+          <div class="pkg-name">anthropic<span class="pkg-ver">≥ 0.51.0</span></div>
+          <div class="pkg-use">Official Anthropic SDK &mdash; used in <code>core/claude.py</code> to call Claude and handle tool-use responses.</div>
+        </div>
+        <div class="pkg">
+          <div class="pkg-name">mcp[cli]<span class="pkg-ver">≥ 1.8.0</span></div>
+          <div class="pkg-use">Official MCP Python SDK &mdash; <code>FastMCP</code> for the server, <code>ClientSession</code> + <code>stdio_client</code> for the client.</div>
+        </div>
+        <div class="pkg">
+          <div class="pkg-name">prompt-toolkit<span class="pkg-ver">≥ 3.0.51</span></div>
+          <div class="pkg-use">Powers the interactive CLI in <code>core/cli.py</code> &mdash; tab completion, history, and the <code>@</code>/<code>/</code> prompt.</div>
+        </div>
+        <div class="pkg">
+          <div class="pkg-name">python-dotenv<span class="pkg-ver">≥ 1.1.0</span></div>
+          <div class="pkg-use">Loads the <code>.env</code> file at startup so <code>ANTHROPIC_API_KEY</code> and <code>CLAUDE_MODEL</code> are available as env vars.</div>
+        </div>
+      </div>
+      <p class="proj-note">
+        Managed with <strong>uv</strong> &mdash; install via <code>uv pip install -e .</code> and run with <code>uv run main.py</code>.
+      </p>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">2 / 6</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="3">
+    <h1>Setting Up the MCP Server</h1>
+    <p class="subtitle">
+      The <span class="highlight">Python MCP SDK</span> makes server creation straightforward — initialize with a single line.
+    </p>
+
+    <div class="setup-grid">
+      <div class="code-panel">
+        <div class="code-label">Initialize the Server</div>
+<pre class="code-snippet"><span class="kw">from</span> mcp.server.fastmcp <span class="kw">import</span> FastMCP
+
+mcp = <span class="cls">FastMCP</span>(<span class="str">"DocumentMCP"</span>, log_level=<span class="str">"ERROR"</span>)</pre>
+        <p class="code-caption">
+          <code>FastMCP</code> is the high-level helper from the MCP SDK that registers tools,
+          resources, and prompts behind a clean decorator API.
+        </p>
+      </div>
+
+      <div class="code-panel">
+        <div class="code-label">Storage — Plain Python <code>dict</code></div>
+<pre class="code-snippet">docs = {
+    <span class="str">"deposition.md"</span>:  <span class="str">"... Angela Smith, P.E."</span>,
+    <span class="str">"report.pdf"</span>:     <span class="str">"... 20m condenser tower."</span>,
+    <span class="str">"financials.docx"</span>: <span class="str">"... budget and expenditures"</span>,
+    <span class="str">"outlook.pdf"</span>:    <span class="str">"... projected performance"</span>,
+    <span class="str">"plan.md"</span>:        <span class="str">"... implementation steps"</span>,
+    <span class="str">"spec.txt"</span>:       <span class="str">"... technical requirements"</span>,
+}</pre>
+        <p class="code-caption">
+          Documents live in memory — <em>keys</em> are document IDs,
+          <em>values</em> are the document content. No DB, no files, just a dict.
+        </p>
+      </div>
+    </div>
+
+    <div class="callout-light">
+      <strong>Tool Definition with Decorators:</strong> instead of writing JSON schemas by
+      hand, the SDK uses Python <strong>type hints</strong> and Pydantic <code>Field</code>
+      descriptions to auto-generate the schema Claude consumes.
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">3 / 6</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="4">
+    <h1>Creating a Document Reader Tool</h1>
+    <p class="subtitle">
+      The first tool reads document contents by ID. The decorator registers it; the function <em>is</em> the implementation.
+    </p>
+
+    <div class="code-panel" style="max-width: 1100px; margin: 0 auto;">
+<pre class="code-snippet"><span class="dec">@mcp.tool(</span>
+<span class="dec">    name=</span><span class="str">"read_doc_contents"</span>,
+<span class="dec">    description=</span><span class="str">"Read the contents of a document and return it as a string."</span>
+<span class="dec">)</span>
+<span class="kw">def</span> <span class="fn">read_document</span>(
+    doc_id: <span class="cls">str</span> = <span class="cls">Field</span>(description=<span class="str">"Id of the document to read"</span>)
+):
+    <span class="kw">if</span> doc_id <span class="kw">not in</span> docs:
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">f"Doc with id {doc_id} not found"</span>)
+
+    <span class="kw">return</span> docs[doc_id]</pre>
+    </div>
+
+    <div class="explain-grid">
+      <div class="explain-card">
+        <div class="explain-title"><span class="num">1</span> Decorator</div>
+        <p><code>@mcp.tool(...)</code> registers the function as a callable tool. The <code>name</code> and <code>description</code> are what Claude sees when discovering tools.</p>
+      </div>
+      <div class="explain-card">
+        <div class="explain-title"><span class="num">2</span> Type Hints + Field</div>
+        <p>Parameters use Python type hints. <code>Field(description=...)</code> from Pydantic gives Claude a clear explanation of each argument.</p>
+      </div>
+      <div class="explain-card">
+        <div class="explain-title"><span class="num">3</span> Error Handling</div>
+        <p>Raising <code>ValueError</code> is the idiomatic way — the SDK converts Python exceptions into a tool error Claude can reason about.</p>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">4 / 6</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="5">
+    <h1>Building a Document Editor Tool</h1>
+    <p class="subtitle">
+      The second tool performs simple find-and-replace operations on documents.
+    </p>
+
+    <div class="code-panel" style="max-width: 1100px; margin: 0 auto 18px;">
+<pre class="code-snippet"><span class="dec">@mcp.tool(</span>
+<span class="dec">    name=</span><span class="str">"edit_document"</span>,
+<span class="dec">    description=</span><span class="str">"Edit a document by replacing a string in the documents content with a new string."</span>
+<span class="dec">)</span>
+<span class="kw">def</span> <span class="fn">edit_document</span>(
+    doc_id:  <span class="cls">str</span> = <span class="cls">Field</span>(description=<span class="str">"Id of the document that will be edited"</span>),
+    old_str: <span class="cls">str</span> = <span class="cls">Field</span>(description=<span class="str">"The text to replace. Must match exactly, including whitespace."</span>),
+    new_str: <span class="cls">str</span> = <span class="cls">Field</span>(description=<span class="str">"The new text to insert in place of the old text."</span>),
+):
+    <span class="kw">if</span> doc_id <span class="kw">not in</span> docs:
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">f"Doc with id {doc_id} not found"</span>)
+
+    docs[doc_id] = docs[doc_id].replace(old_str, new_str)</pre>
+    </div>
+
+    <div class="benefits-panel">
+      <div class="benefits-title">Key Benefits of the SDK Approach</div>
+      <div class="benefits-grid">
+        <div class="benefit"><span class="check">✓</span><span>No manual JSON schema writing required</span></div>
+        <div class="benefit"><span class="check">✓</span><span>Type hints provide automatic validation</span></div>
+        <div class="benefit"><span class="check">✓</span><span>Clear parameter descriptions help Claude understand tool usage</span></div>
+        <div class="benefit"><span class="check">✓</span><span>Error handling integrates naturally with Python exceptions</span></div>
+        <div class="benefit"><span class="check">✓</span><span>Tool registration happens automatically through decorators</span></div>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">5 / 6</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="6">
+    <h1>Register Your Server with <span class="highlight">Claude Code</span></h1>
+    <p class="subtitle">
+      Claude Code can itself consume MCP servers. Register yours and your tools
+      become available in every conversation — no API key, no custom CLI.
+    </p>
+
+    <div class="scope-grid">
+      <div class="scope-card">
+        <div class="scope-head">
+          <span class="scope-badge">A</span>
+          <span>Project Scope <em>(recommended)</em></span>
+        </div>
+        <p class="scope-desc">
+          Writes a <code>.mcp.json</code> file in the project directory. Server
+          is only active when you open Claude Code inside this folder.
+        </p>
+<pre class="code-snippet">$ cd /path/to/cli_project
+$ claude mcp add depverse <span class="kw">--scope</span> project \
+    <span class="kw">--</span> uv --directory "/path/to/cli_project" \
+        run mcp_server.py</pre>
+      </div>
+
+      <div class="scope-card">
+        <div class="scope-head">
+          <span class="scope-badge scope-badge-alt">B</span>
+          <span>User Scope <em>(everywhere)</em></span>
+        </div>
+        <p class="scope-desc">
+          Adds it to your Claude Code user config. Available in every project
+          you open on this machine.
+        </p>
+<pre class="code-snippet">$ claude mcp add depverse <span class="kw">--scope</span> user \
+    <span class="kw">--</span> uv --directory "/path/to/cli_project" \
+        run mcp_server.py</pre>
+      </div>
+    </div>
+
+    <div class="anatomy">
+      <div class="anatomy-title">Anatomy of the command</div>
+<pre class="code-snippet">claude mcp add <span class="str">&lt;name&gt;</span>           <span class="dec"># how Claude Code labels it</span>
+  <span class="kw">--scope</span> project|user      <span class="dec"># where to store the config</span>
+  <span class="kw">--</span>                       <span class="dec"># everything after is the launch cmd</span>
+  uv --directory ... run mcp_server.py   <span class="dec"># spawns server over stdio</span></pre>
+    </div>
+
+    <div class="steps-row">
+      <div class="step-card">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Run the add command</strong>
+          <p>Claude writes the MCP entry to <code>.mcp.json</code> (project) or the user config.</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Restart Claude Code</strong>
+          <p>MCP servers are loaded at startup — quit and relaunch so the new server gets spawned.</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Verify with <code>/mcp</code></strong>
+          <p>Run the slash command to see the server connected and all tools listed.</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Ask Claude to use it</strong>
+          <p><em>"What's the latest version of react on npm?"</em> — Claude picks the tool automatically.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cmd-ref">
+      <div class="cmd-ref-title">Other Useful Commands</div>
+      <div class="cmd-grid">
+        <div class="cmd-item"><code>claude mcp list</code><span>Show all registered servers</span></div>
+        <div class="cmd-item"><code>claude mcp get depverse</code><span>Show the config for one server</span></div>
+        <div class="cmd-item"><code>claude mcp remove depverse</code><span>Unregister the server</span></div>
+        <div class="cmd-item"><code>/mcp</code><span>Inspect servers inside Claude Code</span></div>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">6 / 6</div>
+  </section>
+
+</div>
+
+<!-- =========================================================== -->
+<!-- DECK 3 — depverse                                             -->
+<!-- =========================================================== -->
+<div class="deck" data-deck="depverse">
+
+  <section class="slide active" data-slide="1">
+    <div class="hero">
+      <div>
+        <div class="hero-title">depverse</div>
+        <div class="hero-sub">
+          A custom Model Context Protocol server that gives Claude direct access to the
+          <strong>npm Registry</strong> — so it can answer real questions about package versions,
+          dependencies, and changelogs without scraping or guesswork.
+        </div>
+      </div>
+
+      <div class="hero-arrow">
+        <div class="hero-node tan">Claude</div>
+        <div class="arr">⇄</div>
+        <div class="hero-node accent">depverse</div>
+        <div class="arr">⇄</div>
+        <div class="hero-node tan">registry.npmjs.org</div>
+      </div>
+
+      <div class="body-text" style="text-align: center; font-size: 15px;">
+        Built with <strong>FastMCP</strong> · <strong>httpx</strong> · Python 3.12 ·
+        served over <strong>stdio</strong>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">1 / 8</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="2">
+    <h1>What It Is &amp; Why It Exists</h1>
+    <p class="subtitle">
+      Built <span class="highlight">agent-first</span> — the real problem depverse solves is that
+      AI coding assistants hallucinate outdated package versions.
+    </p>
+
+    <div class="before-after">
+      <div class="ba-card ba-bad">
+        <div class="ba-label">❌ Without depverse</div>
+        <div class="ba-flow">
+          Claude / Cursor / Copilot
+          <span class="ba-arrow">→</span> guesses version
+          <span class="ba-arrow">→</span> writes <code>"react@17.0.0"</code>
+        </div>
+        <div class="ba-verdict">stale, wrong — based on training-data cutoff</div>
+      </div>
+      <div class="ba-card ba-good">
+        <div class="ba-label">✅ With depverse</div>
+        <div class="ba-flow">
+          Claude / Cursor / Copilot
+          <span class="ba-arrow">→</span> calls <code>get_latest_version("react")</code>
+          <span class="ba-arrow">→</span> writes <code>"react@19.2.5"</code>
+        </div>
+        <div class="ba-verdict">live registry data, always current</div>
+      </div>
+    </div>
+
+    <div class="value-grid">
+      <div class="value-col value-hot">
+        <div class="value-head">🔥 Primary value</div>
+        <div class="value-row"><span class="tick">✓</span> AI coding agents writing <code>package.json</code> / imports</div>
+        <div class="value-row"><span class="tick">✓</span> Project scaffolding &amp; dependency pinning</div>
+        <div class="value-row"><span class="tick">✓</span> Upgrade planning — "what changed in v2?"</div>
+      </div>
+      <div class="value-col value-warm">
+        <div class="value-head">✅ Useful to devs</div>
+        <div class="value-row"><span class="tick">✓</span> "Is this package still maintained?"</div>
+        <div class="value-row"><span class="tick">✓</span> License / size audits before adding a dep</div>
+        <div class="value-row"><span class="tick">✓</span> Quick inspection without leaving the editor</div>
+      </div>
+      <div class="value-col value-cool">
+        <div class="value-head">⚠️ Honest limits</div>
+        <div class="value-row"><span class="cross">–</span> npm website &amp; <code>npm outdated</code> exist</div>
+        <div class="value-row"><span class="cross">–</span> Outside agent workflows, value drops</div>
+        <div class="value-row"><span class="cross">–</span> Not a replacement for <code>npm</code> CLI</div>
+      </div>
+    </div>
+
+    <div class="verdict-strip">
+      <strong>Verdict:</strong> AI coding agents suffer from <span class="highlight">stale version knowledge</span>
+      — no existing tool fixes this well. depverse is built around that gap, and every other tool
+      (license, size, readme, changelog) falls out naturally.
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">2 / 8</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="3">
+    <h1>Version Tools <span style="color: var(--muted); font-size: 24px;">(6)</span></h1>
+    <p class="subtitle">
+      These tools answer <span class="highlight">"which version?"</span> questions —
+      latest, all, dist-tags, existence, changes.
+    </p>
+
+    <div class="tools-grid">
+      <div class="tool-card">
+        <div class="tool-name">get_latest_version</div>
+        <div class="tool-title">Latest Stable</div>
+        <p class="tool-desc">Returns the current stable version string for any public npm package.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_all_versions</div>
+        <div class="tool-title">Full Version List</div>
+        <p class="tool-desc">Every version ever published, plus a count. Useful for history questions.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_version_info</div>
+        <div class="tool-title">Manifest Inspector</div>
+        <p class="tool-desc">Dependencies, devDependencies, engines, license, repository for a specific version.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_dist_tags</div>
+        <div class="tool-title">Dist-Tag Map</div>
+        <p class="tool-desc">All labels (latest, beta, next, canary…) mapped to the versions they point to.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_changelog</div>
+        <div class="tool-title">Release Notes</div>
+        <p class="tool-desc">Pulls GitHub Releases for a tag, or falls back to <code>CHANGELOG.md</code> from the repo.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">check_version_exists</div>
+        <div class="tool-title">Existence Check</div>
+        <p class="tool-desc">Boolean: does <code>package@version</code> exist on npm? Quick validation.</p>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">3 / 8</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="4">
+    <h1>Package Info Tools <span style="color: var(--muted); font-size: 24px;">(7)</span></h1>
+    <p class="subtitle">
+      These tools answer <span class="highlight">"what kind of package?"</span> questions —
+      metadata, readme, license, size, repo, keywords.
+    </p>
+
+    <div class="tools-grid">
+      <div class="tool-card">
+        <div class="tool-name">get_package_info</div>
+        <div class="tool-title">Full Metadata</div>
+        <p class="tool-desc">Name, description, author, license, homepage, maintainers, creation date.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_package_readme</div>
+        <div class="tool-title">README Content</div>
+        <p class="tool-desc">Fetches the README markdown for the package. Truncated to 20,000 chars.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_package_keywords</div>
+        <div class="tool-title">Tags / Keywords</div>
+        <p class="tool-desc">The keyword list declared in <code>package.json</code> — used by npm search.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_package_repository</div>
+        <div class="tool-title">Source Repo</div>
+        <p class="tool-desc">Repository URL plus a parsed GitHub <code>owner/repo</code> slug when available.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_package_homepage</div>
+        <div class="tool-title">Homepage / Docs</div>
+        <p class="tool-desc">Declared homepage URL, with the npm package page URL as a fallback.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_package_license</div>
+        <div class="tool-title">License Type</div>
+        <p class="tool-desc">SPDX license string (MIT, Apache-2.0, …). Also handles legacy array form.</p>
+      </div>
+      <div class="tool-card" style="grid-column: span 3; max-width: 420px; margin: 0 auto;">
+        <div class="tool-name">get_package_size</div>
+        <div class="tool-title">Unpacked Size &amp; File Count</div>
+        <p class="tool-desc">Bytes + human-readable size plus total file count from the package tarball.</p>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">4 / 8</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="5">
+    <h1>Dependency Tools <span style="color: var(--muted); font-size: 24px;">(5)</span></h1>
+    <p class="subtitle">
+      These tools answer <span class="highlight">"what does it need?"</span> questions —
+      runtime, peer, dev deps plus full tree resolution and compatibility checks.
+    </p>
+
+    <div class="tools-grid">
+      <div class="tool-card">
+        <div class="tool-name">get_dependencies</div>
+        <div class="tool-title">Runtime Deps</div>
+        <p class="tool-desc">Prod dependencies with their declared version ranges — what gets installed at runtime.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_peer_dependencies</div>
+        <div class="tool-title">Peer Deps</div>
+        <p class="tool-desc">Packages the host app must provide (e.g. <code>react-dom</code> needs <code>react</code>).</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_dev_dependencies</div>
+        <div class="tool-title">Dev-only Deps</div>
+        <p class="tool-desc">Build, test, and lint tools — not installed by consumers of the package.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_dependency_tree</div>
+        <div class="tool-title">Full Transitive Tree</div>
+        <p class="tool-desc">Resolves the entire nested graph in parallel. Depth-capped, with dedup caching.</p>
+      </div>
+      <div class="tool-card alt" style="grid-column: span 2; max-width: 640px; margin: 0 auto;">
+        <div class="tool-name">check_peer_compatibility</div>
+        <div class="tool-title">Peer Satisfaction Check</div>
+        <p class="tool-desc">
+          Given what you have installed, reports whether each peer dep is satisfied
+          (<code>yes / no / unknown / missing</code>). Includes a built-in npm-semver matcher
+          covering <code>^</code>, <code>~</code>, comparators, and <code>||</code> ranges.
+        </p>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">5 / 8</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="6">
+    <h1>Tool Reference</h1>
+    <p class="subtitle">
+      Exact inputs, outputs, and the registry endpoint each tool hits.
+    </p>
+
+    <div class="ref-table">
+      <div class="ref-row head">
+        <div>Tool</div><div>Parameters</div><div>Endpoint</div><div>Returns</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_latest_version</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ name, version }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_all_versions</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}</code></div>
+        <div><code>{ name, count, versions[] }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_version_info</code></div>
+        <div><code>package_name</code>, <code>version</code></div>
+        <div><code>GET /{pkg}/{version}</code></div>
+        <div>Manifest (deps, license, repo…)</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_dist_tags</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}</code> (reads <code>dist-tags</code>)</div>
+        <div><code>{ name, dist_tags{} }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_changelog</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div>GitHub Releases API / raw <code>CHANGELOG.md</code></div>
+        <div><code>{ source, repo, body | content }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>check_version_exists</code></div>
+        <div><code>package_name</code>, <code>version</code></div>
+        <div><code>GET /{pkg}/{version}</code></div>
+        <div><code>{ package, version, exists }</code></div>
+      </div>
+
+      <div class="ref-row" style="background: var(--tan-light); font-style: italic; font-weight: 600;">
+        <div style="grid-column: span 4;">— Package Info Tools —</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_info</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}</code> + <code>/{pkg}/latest</code></div>
+        <div>name, desc, author, license, maintainers, dates</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_readme</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}</code> (reads <code>readme</code>)</div>
+        <div><code>{ content, truncated, has_readme }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_keywords</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ count, keywords[] }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_repository</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ repository, github_slug }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_homepage</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ homepage, npm_url }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_license</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ license, licenses }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_size</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div><code>GET /{pkg}/{version|latest}</code></div>
+        <div><code>{ unpacked_bytes, unpacked_human, file_count }</code></div>
+      </div>
+
+      <div class="ref-row" style="background: var(--tan-light); font-style: italic; font-weight: 600;">
+        <div style="grid-column: span 4;">— Dependency Tools —</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_dependencies</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div><code>GET /{pkg}/{version|latest}</code></div>
+        <div><code>{ count, dependencies{} }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_peer_dependencies</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div><code>GET /{pkg}/{version|latest}</code></div>
+        <div><code>{ peer_dependencies, peer_meta }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_dev_dependencies</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div><code>GET /{pkg}/{version|latest}</code></div>
+        <div><code>{ count, dev_dependencies{} }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_dependency_tree</code></div>
+        <div><code>package_name</code>, <code>version?</code>, <code>max_depth?</code></div>
+        <div>Recursive manifest fetch (asyncio.gather)</div>
+        <div>Nested tree with dedup caching</div>
+      </div>
+      <div class="ref-row">
+        <div><code>check_peer_compatibility</code></div>
+        <div><code>package_name</code>, <code>version?</code>, <code>installed{}</code></div>
+        <div>Manifest + built-in semver matcher</div>
+        <div><code>{ all_ok, report[{satisfied}] }</code></div>
+      </div>
+    </div>
+
+    <div class="body-text" style="text-align: center; margin-top: 18px; font-size: 15px;">
+      Error handling is centralised in a <code>_fetch_json</code> helper — network errors and
+      <code>404 / 5xx</code> responses become clear <code>ValueError</code>s Claude can reason about.
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">6 / 8</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="7">
+    <h1>Architecture &amp; Installation</h1>
+    <p class="subtitle">
+      The server is just a Python script. Claude talks to it over stdio; it talks to npm over HTTPS.
+    </p>
+
+    <div class="arch">
+      <div class="arch-row">
+        <div class="arch-box claude">Claude Code<small>or any MCP client</small></div>
+        <div class="arch-arrow">⇄</div>
+        <div class="arch-box server">depverse<small>mcp_server.py (FastMCP)</small></div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box npm">npm Registry<small>registry.npmjs.org</small></div>
+      </div>
+      <div class="arch-row" style="margin-top: -8px;">
+        <div class="arch-label">JSON-RPC over stdio</div>
+        <div style="width: 30px;"></div>
+        <div class="arch-label">HTTPS + httpx</div>
+      </div>
+      <div class="arch-row">
+        <div style="flex: 1;"></div>
+        <div class="arch-box server" style="font-size: 14px; padding: 10px 16px;">fallback for changelogs</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box gh">GitHub API<small>releases / raw CHANGELOG.md</small></div>
+      </div>
+    </div>
+
+    <div class="setup-steps" style="margin-top: 22px;">
+      <div class="step-box">
+        <div class="step-head">
+          <span class="step-num">1</span>
+          <span class="step-title">Register with Claude Code</span>
+        </div>
+<pre class="code-snippet"><span class="cmt"># from inside cli_project/</span>
+claude mcp add depverse <span class="kw">--scope</span> project \
+  <span class="kw">--</span> uv --directory "$(pwd)" run mcp_server.py</pre>
+      </div>
+
+      <div class="step-box" style="border-left-color: var(--tan);">
+        <div class="step-head">
+          <span class="step-num" style="background: var(--terracotta-dark);">2</span>
+          <span class="step-title">Restart &amp; Verify</span>
+        </div>
+<pre class="code-snippet"><span class="cmt"># restart Claude Code, then:</span>
+/mcp
+
+<span class="cmt"># should list: depverse   → 18 tools</span></pre>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">7 / 8</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="8">
+    <h1>Try It — Example Queries</h1>
+    <p class="subtitle">
+      Ask Claude any of these in natural language — it picks the right tool automatically.
+    </p>
+
+    <div class="examples">
+      <div class="example">
+        <div class="example-q">"What's the latest version of express?"</div>
+        <div class="example-a">Claude calls <code>get_latest_version(package_name="express")</code>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"How many versions of lodash exist on npm?"</div>
+        <div class="example-a">Calls <code>get_all_versions</code> and reports the <code>count</code>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"What are react's dist-tags right now?"</div>
+        <div class="example-a">Calls <code>get_dist_tags(package_name="react")</code> — shows <em>latest, beta, next, canary</em>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"What changed in react 18.2.0?"</div>
+        <div class="example-a">Calls <code>get_changelog(package_name="react", version="18.2.0")</code> — returns GitHub release body.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"How big is the react package when unpacked?"</div>
+        <div class="example-a">Calls <code>get_package_size</code> — returns bytes, human-readable size, and file count.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"What license does express use?"</div>
+        <div class="example-a">Calls <code>get_package_license(package_name="express")</code>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"Show me the README for zod"</div>
+        <div class="example-a">Calls <code>get_package_readme</code> and streams back the markdown.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"Where is the source code for vue hosted?"</div>
+        <div class="example-a">Calls <code>get_package_repository</code> — returns the repo URL and GitHub slug.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"What are the peer dependencies of react-dom?"</div>
+        <div class="example-a">Calls <code>get_peer_dependencies</code> — shows the required <code>react</code> range.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"I have react 18.2.0 installed — does it work with react-dom 19?"</div>
+        <div class="example-a">Calls <code>check_peer_compatibility</code> with the installed map — returns a per-peer <code>yes/no</code>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"Show me the full dependency tree of express depth 2"</div>
+        <div class="example-a">Calls <code>get_dependency_tree</code> with <code>max_depth=2</code>.</div>
+      </div>
+    </div>
+
+    <div class="body-text" style="text-align: center; margin-top: 22px; font-size: 16px;">
+      <strong>Why this is powerful:</strong> the same 18 tools, combined by Claude's reasoning,
+      cover virtually <span class="highlight">any question</span> about an npm package —
+      dependency audits, upgrade planning, license checks, size audits, release inspection,
+      peer-compat validation.
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">8 / 8</div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev">← Prev</button>
+  <button id="next">Next →</button>
+</div>
+
+<script>
+  const decks = document.querySelectorAll('.deck');
+  const switchBtns = document.querySelectorAll('.switch-btn');
+  const progress = document.getElementById('progress');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+
+  let activeDeckKey = 'explain';
+  const slideIndex = { explain: 0, build: 0, depverse: 0 };
+
+  function getActiveDeck() {
+    return document.querySelector(`.deck[data-deck="${activeDeckKey}"]`);
+  }
+
+  function getSlides() {
+    return getActiveDeck().querySelectorAll('.slide');
+  }
+
+  function show(i) {
+    const slides = getSlides();
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    prevBtn.disabled = i === 0;
+    nextBtn.disabled = i === slides.length - 1;
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+    slideIndex[activeDeckKey] = i;
+  }
+
+  function switchDeck(key) {
+    activeDeckKey = key;
+    decks.forEach(d => d.classList.toggle('active', d.dataset.deck === key));
+    switchBtns.forEach(b => b.classList.toggle('active', b.dataset.deck === key));
+    show(slideIndex[key] || 0);
+  }
+
+  switchBtns.forEach(btn => {
+    btn.addEventListener('click', () => switchDeck(btn.dataset.deck));
+  });
+
+  prevBtn.addEventListener('click', () => {
+    const i = slideIndex[activeDeckKey];
+    if (i > 0) show(i - 1);
+  });
+  nextBtn.addEventListener('click', () => {
+    const slides = getSlides();
+    const i = slideIndex[activeDeckKey];
+    if (i < slides.length - 1) show(i + 1);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const slides = getSlides();
+    const i = slideIndex[activeDeckKey];
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+      if (i < slides.length - 1) show(i + 1);
+    } else if (e.key === 'ArrowLeft') {
+      if (i > 0) show(i - 1);
+    } else if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    } else if (e.key === '1') { switchDeck('explain'); }
+    else if (e.key === '2') { switchDeck('build'); }
+    else if (e.key === '3') { switchDeck('depverse'); }
+  });
+
+  show(0);
+</script>
+
+</body>
+</html>
