@@ -1,5 +1,13 @@
 # Depverse
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-View%20Presentation-C08763?style=for-the-badge&logo=github)](https://yash-neural.github.io/Depverse/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![MCP](https://img.shields.io/badge/MCP-1.8.0%2B-1a1a1a?style=flat-square)](https://modelcontextprotocol.io)
+[![npm Registry](https://img.shields.io/badge/npm-registry-CB3837?style=flat-square&logo=npm&logoColor=white)](https://registry.npmjs.org)
+
+> **🎬 [View the live presentation deck →](https://yash-neural.github.io/Depverse/)**
+> A three-part walkthrough of MCP, building an MCP server, and the Depverse npm tools.
+
 **Depverse** is an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server that exposes the public [npm Registry](https://registry.npmjs.org) as a set of structured tools Claude can call. It ships with a CLI chat client so you can talk to Claude in your terminal and let it inspect any npm package — versions, dependencies, changelogs, peer compatibility, bundle size, and more — without ever leaving the shell.
 
 The server speaks the MCP `stdio` transport, so it plugs straight into Claude Desktop, Claude Code, or any other MCP-aware client.
