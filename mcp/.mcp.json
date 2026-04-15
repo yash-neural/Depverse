@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "depverse": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/htadmin/AI Agent/claude-code-mcp/cli_project",
+        "run",
+        "mcp_server.py"
+      ],
+      "env": {}
+    }
+  }
+}

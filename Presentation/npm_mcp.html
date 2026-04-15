@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>depverse — Our Server</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Lora:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F2F1EC;
+    --panel: #E8E6DF;
+    --tan: #E8D9B5;
+    --tan-light: #F0E4C5;
+    --terracotta: #C08763;
+    --terracotta-dark: #A76F4F;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    font-family: 'Lora', Georgia, serif;
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  .deck { width: 100vw; height: 100vh; position: relative; }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    padding: 50px 70px 70px;
+    display: none;
+    flex-direction: column;
+    background: var(--bg);
+  }
+  .slide.active { display: flex; }
+  .slide.scrollable.active { overflow-y: auto; }
+
+  .slide h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 14px;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 19px;
+    max-width: 950px;
+    margin: 0 auto 20px;
+    line-height: 1.55;
+  }
+
+  .body-text {
+    font-size: 17px;
+    line-height: 1.65;
+    max-width: 1000px;
+    margin: 0 auto 14px;
+  }
+  .body-text strong { font-weight: 700; }
+
+  .highlight {
+    background: linear-gradient(transparent 55%, var(--tan) 55%);
+    padding: 0 4px;
+    font-weight: 700;
+    color: var(--terracotta-dark);
+  }
+
+  code, .inline-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    background: var(--tan-light);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  pre.code-snippet {
+    background: #1a1a1a;
+    color: #F0E4C5;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  pre.code-snippet .kw  { color: #F0B27A; font-weight: 600; }
+  pre.code-snippet .str { color: #98C379; }
+  pre.code-snippet .cls { color: #61AFEF; }
+  pre.code-snippet .fn  { color: #E5C07B; }
+  pre.code-snippet .dec { color: #C678DD; }
+  pre.code-snippet .cmt { color: #7F848E; font-style: italic; }
+
+  /* Footer */
+  .brand {
+    position: absolute;
+    bottom: 24px;
+    left: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .page-num {
+    position: absolute;
+    bottom: 24px;
+    right: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .nav {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 50;
+  }
+  .nav button {
+    background: var(--terracotta);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 9px 18px;
+    font-family: 'Lora', serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .nav button:hover { background: var(--terracotta-dark); }
+  .nav button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: var(--terracotta);
+    transition: width 0.3s ease;
+    z-index: 100;
+  }
+
+  /* Deck switcher */
+  .deck-switch {
+    position: fixed;
+    top: 14px;
+    right: 18px;
+    display: flex;
+    gap: 6px;
+    background: var(--panel);
+    border-radius: 999px;
+    padding: 4px;
+    z-index: 80;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .switch-btn {
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-family: 'Lora', serif;
+    font-size: 13px;
+    color: var(--ink);
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+  }
+  .switch-btn:hover { background: rgba(192,135,99,0.15); }
+  .switch-btn.active {
+    background: var(--terracotta);
+    color: #fff;
+  }
+
+  /* Slide 1 — intro hero */
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 28px;
+  }
+  .hero-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 64px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .hero-sub {
+    font-size: 21px;
+    color: var(--muted);
+    max-width: 900px;
+    line-height: 1.5;
+  }
+  .hero-arrow {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 10px;
+  }
+  .hero-node {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 18px 24px;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 20px;
+    border: 2px solid transparent;
+  }
+  .hero-node.accent { background: var(--terracotta); color: #fff; border-color: var(--terracotta-dark); }
+  .hero-node.tan    { background: var(--tan); }
+  .hero-arrow .arr {
+    font-size: 28px;
+    color: var(--terracotta);
+  }
+
+  /* Slide 2 — Before/After + Value matrix */
+  .before-after {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    max-width: 1200px;
+    margin: 0 auto 18px;
+  }
+  .ba-card {
+    border-radius: 12px;
+    padding: 14px 18px;
+    border-left: 6px solid;
+  }
+  .ba-bad {
+    background: #fdecea;
+    border-left-color: #c0392b;
+  }
+  .ba-good {
+    background: #eaf6e9;
+    border-left-color: #27ae60;
+  }
+  .ba-label {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  .ba-flow {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .ba-flow code {
+    background: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .ba-arrow {
+    color: var(--terracotta-dark);
+    font-weight: 700;
+    margin: 0 4px;
+  }
+  .ba-verdict {
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .value-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    max-width: 1200px;
+    margin: 0 auto 16px;
+  }
+  .value-col {
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .value-hot  { background: #fdf2e9; border-top: 4px solid var(--terracotta); }
+  .value-warm { background: var(--tan-light); border-top: 4px solid var(--tan); }
+  .value-cool { background: var(--panel); border-top: 4px solid var(--muted); }
+
+  .value-head {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 8px;
+  }
+  .value-row {
+    font-size: 13px;
+    line-height: 1.45;
+    margin-bottom: 6px;
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+  }
+  .value-row code {
+    font-size: 12px;
+  }
+  .tick {
+    color: #27ae60;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .cross {
+    color: #c0392b;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .verdict-strip {
+    background: #1a1a1a;
+    color: #F0E4C5;
+    padding: 12px 18px;
+    border-radius: 10px;
+    max-width: 1200px;
+    margin: 0 auto;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .verdict-strip strong {
+    color: var(--terracotta);
+  }
+  .verdict-strip code {
+    background: rgba(255,255,255,0.08);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: #F0E4C5;
+  }
+
+  /* Slide 3 — tools grid */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .tool-card {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border-top: 4px solid var(--terracotta);
+  }
+  .tool-card.alt { border-top-color: var(--tan); }
+  .tool-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--terracotta-dark);
+    margin-bottom: 6px;
+  }
+  .tool-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+  .tool-desc {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  /* Slide 3 — tool reference table */
+  .ref-table {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .ref-row {
+    display: grid;
+    grid-template-columns: 1.1fr 1.1fr 1.4fr 1.4fr;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    align-items: start;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .ref-row.head {
+    background: var(--terracotta);
+    color: #fff;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 14px;
+    border-radius: 10px 10px 0 0;
+    border-bottom: none;
+  }
+  .ref-row:nth-child(even):not(.head) {
+    background: var(--panel);
+  }
+  .ref-row code {
+    font-size: 12px;
+    background: var(--tan-light);
+  }
+  .ref-row.head code {
+    background: transparent;
+    color: #fff;
+    padding: 0;
+  }
+
+  /* Slide 4 — architecture diagram (CSS only) */
+  .arch {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-items: center;
+  }
+  .arch-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .arch-box {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 14px 22px;
+    min-width: 170px;
+    text-align: center;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 17px;
+    border: 2px solid transparent;
+  }
+  .arch-box small {
+    display: block;
+    font-family: 'Lora', serif;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .arch-box.claude  { background: var(--tan); }
+  .arch-box.server  { background: var(--terracotta); color: #fff; }
+  .arch-box.npm     { background: #cb3837; color: #fff; }
+  .arch-box.gh      { background: #1a1a1a; color: #fff; }
+  .arch-arrow {
+    font-size: 24px;
+    color: var(--terracotta);
+    font-weight: 700;
+  }
+  .arch-label {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: -10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Slide 5 — setup steps */
+  .setup-steps {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    max-width: 1200px;
+    margin: 0 auto 18px;
+  }
+  .step-box {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 14px 18px;
+    border-left: 5px solid var(--terracotta);
+  }
+  .step-head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .step-num {
+    background: var(--terracotta);
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
+    text-align: center;
+    border-radius: 50%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .step-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 17px;
+  }
+  .step-desc {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+
+  /* Slide 6 — examples */
+  .examples {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .example {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+  .example-q {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 6px;
+    color: var(--terracotta-dark);
+  }
+  .example-a {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .example-a code {
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck-switch">
+  <a href="presentation.html" class="switch-btn">Explain MCP</a>
+  <a href="building_mcp.html" class="switch-btn">Build MCP</a>
+  <a href="npm_mcp.html" class="switch-btn active">depverse</a>
+</div>
+
+<div class="deck">
+
+  <!-- SLIDE 1 — Hero intro -->
+  <section class="slide active" data-slide="1">
+    <div class="hero">
+      <div>
+        <div class="hero-title">depverse</div>
+        <div class="hero-sub">
+          A custom Model Context Protocol server that gives Claude direct access to the
+          <strong>npm Registry</strong> — so it can answer real questions about package versions,
+          dependencies, and changelogs without scraping or guesswork.
+        </div>
+      </div>
+
+      <div class="hero-arrow">
+        <div class="hero-node tan">Claude</div>
+        <div class="arr">⇄</div>
+        <div class="hero-node accent">depverse</div>
+        <div class="arr">⇄</div>
+        <div class="hero-node tan">registry.npmjs.org</div>
+      </div>
+
+      <div class="body-text" style="text-align: center; font-size: 15px;">
+        Built with <strong>FastMCP</strong> · <strong>httpx</strong> · Python 3.12 ·
+        served over <strong>stdio</strong>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">1 / 8</div>
+  </section>
+
+  <!-- SLIDE 2 — What & Why -->
+  <section class="slide scrollable" data-slide="2">
+    <h1>What It Is &amp; Why It Exists</h1>
+    <p class="subtitle">
+      Built <span class="highlight">agent-first</span> — the real problem depverse solves is that
+      AI coding assistants hallucinate outdated package versions.
+    </p>
+
+    <!-- The core before/after -->
+    <div class="before-after">
+      <div class="ba-card ba-bad">
+        <div class="ba-label">❌ Without depverse</div>
+        <div class="ba-flow">
+          Claude / Cursor / Copilot
+          <span class="ba-arrow">→</span> guesses version
+          <span class="ba-arrow">→</span> writes <code>"react@17.0.0"</code>
+        </div>
+        <div class="ba-verdict">stale, wrong — based on training-data cutoff</div>
+      </div>
+      <div class="ba-card ba-good">
+        <div class="ba-label">✅ With depverse</div>
+        <div class="ba-flow">
+          Claude / Cursor / Copilot
+          <span class="ba-arrow">→</span> calls <code>get_latest_version("react")</code>
+          <span class="ba-arrow">→</span> writes <code>"react@19.2.5"</code>
+        </div>
+        <div class="ba-verdict">live registry data, always current</div>
+      </div>
+    </div>
+
+    <!-- Value matrix -->
+    <div class="value-grid">
+      <div class="value-col value-hot">
+        <div class="value-head">🔥 Primary value</div>
+        <div class="value-row"><span class="tick">✓</span> AI coding agents writing <code>package.json</code> / imports</div>
+        <div class="value-row"><span class="tick">✓</span> Project scaffolding &amp; dependency pinning</div>
+        <div class="value-row"><span class="tick">✓</span> Upgrade planning — "what changed in v2?"</div>
+      </div>
+      <div class="value-col value-warm">
+        <div class="value-head">✅ Useful to devs</div>
+        <div class="value-row"><span class="tick">✓</span> "Is this package still maintained?"</div>
+        <div class="value-row"><span class="tick">✓</span> License / size audits before adding a dep</div>
+        <div class="value-row"><span class="tick">✓</span> Quick inspection without leaving the editor</div>
+      </div>
+      <div class="value-col value-cool">
+        <div class="value-head">⚠️ Honest limits</div>
+        <div class="value-row"><span class="cross">–</span> npm website &amp; <code>npm outdated</code> exist</div>
+        <div class="value-row"><span class="cross">–</span> Outside agent workflows, value drops</div>
+        <div class="value-row"><span class="cross">–</span> Not a replacement for <code>npm</code> CLI</div>
+      </div>
+    </div>
+
+    <div class="verdict-strip">
+      <strong>Verdict:</strong> AI coding agents suffer from <span class="highlight">stale version knowledge</span>
+      — no existing tool fixes this well. depverse is built around that gap, and every other tool
+      (license, size, readme, changelog) falls out naturally.
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">2 / 8</div>
+  </section>
+
+  <!-- SLIDE 3 — Version Tools -->
+  <section class="slide scrollable" data-slide="3">
+    <h1>Version Tools <span style="color: var(--muted); font-size: 24px;">(6)</span></h1>
+    <p class="subtitle">
+      These tools answer <span class="highlight">"which version?"</span> questions —
+      latest, all, dist-tags, existence, changes.
+    </p>
+
+    <div class="tools-grid">
+      <div class="tool-card">
+        <div class="tool-name">get_latest_version</div>
+        <div class="tool-title">Latest Stable</div>
+        <p class="tool-desc">Returns the current stable version string for any public npm package.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_all_versions</div>
+        <div class="tool-title">Full Version List</div>
+        <p class="tool-desc">Every version ever published, plus a count. Useful for history questions.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_version_info</div>
+        <div class="tool-title">Manifest Inspector</div>
+        <p class="tool-desc">Dependencies, devDependencies, engines, license, repository for a specific version.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_dist_tags</div>
+        <div class="tool-title">Dist-Tag Map</div>
+        <p class="tool-desc">All labels (latest, beta, next, canary…) mapped to the versions they point to.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_changelog</div>
+        <div class="tool-title">Release Notes</div>
+        <p class="tool-desc">Pulls GitHub Releases for a tag, or falls back to <code>CHANGELOG.md</code> from the repo.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">check_version_exists</div>
+        <div class="tool-title">Existence Check</div>
+        <p class="tool-desc">Boolean: does <code>package@version</code> exist on npm? Quick validation.</p>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">3 / 8</div>
+  </section>
+
+  <!-- SLIDE 4 — Package Info Tools -->
+  <section class="slide scrollable" data-slide="4">
+    <h1>Package Info Tools <span style="color: var(--muted); font-size: 24px;">(7)</span></h1>
+    <p class="subtitle">
+      These tools answer <span class="highlight">"what kind of package?"</span> questions —
+      metadata, readme, license, size, repo, keywords.
+    </p>
+
+    <div class="tools-grid">
+      <div class="tool-card">
+        <div class="tool-name">get_package_info</div>
+        <div class="tool-title">Full Metadata</div>
+        <p class="tool-desc">Name, description, author, license, homepage, maintainers, creation date.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_package_readme</div>
+        <div class="tool-title">README Content</div>
+        <p class="tool-desc">Fetches the README markdown for the package. Truncated to 20,000 chars.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_package_keywords</div>
+        <div class="tool-title">Tags / Keywords</div>
+        <p class="tool-desc">The keyword list declared in <code>package.json</code> — used by npm search.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_package_repository</div>
+        <div class="tool-title">Source Repo</div>
+        <p class="tool-desc">Repository URL plus a parsed GitHub <code>owner/repo</code> slug when available.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_package_homepage</div>
+        <div class="tool-title">Homepage / Docs</div>
+        <p class="tool-desc">Declared homepage URL, with the npm package page URL as a fallback.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_package_license</div>
+        <div class="tool-title">License Type</div>
+        <p class="tool-desc">SPDX license string (MIT, Apache-2.0, …). Also handles legacy array form.</p>
+      </div>
+      <div class="tool-card" style="grid-column: span 3; max-width: 420px; margin: 0 auto;">
+        <div class="tool-name">get_package_size</div>
+        <div class="tool-title">Unpacked Size &amp; File Count</div>
+        <p class="tool-desc">Bytes + human-readable size plus total file count from the package tarball.</p>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">4 / 8</div>
+  </section>
+
+  <!-- SLIDE 5 — Dependency Tools -->
+  <section class="slide scrollable" data-slide="5">
+    <h1>Dependency Tools <span style="color: var(--muted); font-size: 24px;">(5)</span></h1>
+    <p class="subtitle">
+      These tools answer <span class="highlight">"what does it need?"</span> questions —
+      runtime, peer, dev deps plus full tree resolution and compatibility checks.
+    </p>
+
+    <div class="tools-grid">
+      <div class="tool-card">
+        <div class="tool-name">get_dependencies</div>
+        <div class="tool-title">Runtime Deps</div>
+        <p class="tool-desc">Prod dependencies with their declared version ranges — what gets installed at runtime.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_peer_dependencies</div>
+        <div class="tool-title">Peer Deps</div>
+        <p class="tool-desc">Packages the host app must provide (e.g. <code>react-dom</code> needs <code>react</code>).</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_dev_dependencies</div>
+        <div class="tool-title">Dev-only Deps</div>
+        <p class="tool-desc">Build, test, and lint tools — not installed by consumers of the package.</p>
+      </div>
+      <div class="tool-card alt">
+        <div class="tool-name">get_dependency_tree</div>
+        <div class="tool-title">Full Transitive Tree</div>
+        <p class="tool-desc">Resolves the entire nested graph in parallel. Depth-capped, with dedup caching.</p>
+      </div>
+      <div class="tool-card alt" style="grid-column: span 2; max-width: 640px; margin: 0 auto;">
+        <div class="tool-name">check_peer_compatibility</div>
+        <div class="tool-title">Peer Satisfaction Check</div>
+        <p class="tool-desc">
+          Given what you have installed, reports whether each peer dep is satisfied
+          (<code>yes / no / unknown / missing</code>). Includes a built-in npm-semver matcher
+          covering <code>^</code>, <code>~</code>, comparators, and <code>||</code> ranges.
+        </p>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">5 / 8</div>
+  </section>
+
+  <!-- SLIDE 6 — Tool reference table -->
+  <section class="slide scrollable" data-slide="6">
+    <h1>Tool Reference</h1>
+    <p class="subtitle">
+      Exact inputs, outputs, and the registry endpoint each tool hits.
+    </p>
+
+    <div class="ref-table">
+      <div class="ref-row head">
+        <div>Tool</div>
+        <div>Parameters</div>
+        <div>Endpoint</div>
+        <div>Returns</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_latest_version</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ name, version }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_all_versions</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}</code></div>
+        <div><code>{ name, count, versions[] }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_version_info</code></div>
+        <div><code>package_name</code>, <code>version</code></div>
+        <div><code>GET /{pkg}/{version}</code></div>
+        <div>Manifest (deps, license, repo…)</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_dist_tags</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}</code> (reads <code>dist-tags</code>)</div>
+        <div><code>{ name, dist_tags{} }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_changelog</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div>GitHub Releases API / raw <code>CHANGELOG.md</code></div>
+        <div><code>{ source, repo, body | content }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>check_version_exists</code></div>
+        <div><code>package_name</code>, <code>version</code></div>
+        <div><code>GET /{pkg}/{version}</code></div>
+        <div><code>{ package, version, exists }</code></div>
+      </div>
+
+      <!-- Package Info tools -->
+      <div class="ref-row" style="background: var(--tan-light); font-style: italic; font-weight: 600;">
+        <div style="grid-column: span 4;">— Package Info Tools —</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_info</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}</code> + <code>/{pkg}/latest</code></div>
+        <div>name, desc, author, license, maintainers, dates</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_readme</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}</code> (reads <code>readme</code>)</div>
+        <div><code>{ content, truncated, has_readme }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_keywords</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ count, keywords[] }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_repository</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ repository, github_slug }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_homepage</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ homepage, npm_url }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_license</code></div>
+        <div><code>package_name</code></div>
+        <div><code>GET /{pkg}/latest</code></div>
+        <div><code>{ license, licenses }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_package_size</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div><code>GET /{pkg}/{version|latest}</code></div>
+        <div><code>{ unpacked_bytes, unpacked_human, file_count }</code></div>
+      </div>
+
+      <!-- Dependency tools -->
+      <div class="ref-row" style="background: var(--tan-light); font-style: italic; font-weight: 600;">
+        <div style="grid-column: span 4;">— Dependency Tools —</div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_dependencies</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div><code>GET /{pkg}/{version|latest}</code></div>
+        <div><code>{ count, dependencies{} }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_peer_dependencies</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div><code>GET /{pkg}/{version|latest}</code></div>
+        <div><code>{ peer_dependencies, peer_meta }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_dev_dependencies</code></div>
+        <div><code>package_name</code>, <code>version?</code></div>
+        <div><code>GET /{pkg}/{version|latest}</code></div>
+        <div><code>{ count, dev_dependencies{} }</code></div>
+      </div>
+      <div class="ref-row">
+        <div><code>get_dependency_tree</code></div>
+        <div><code>package_name</code>, <code>version?</code>, <code>max_depth?</code></div>
+        <div>Recursive manifest fetch (asyncio.gather)</div>
+        <div>Nested tree with dedup caching</div>
+      </div>
+      <div class="ref-row">
+        <div><code>check_peer_compatibility</code></div>
+        <div><code>package_name</code>, <code>version?</code>, <code>installed{}</code></div>
+        <div>Manifest + built-in semver matcher</div>
+        <div><code>{ all_ok, report[{satisfied}] }</code></div>
+      </div>
+    </div>
+
+    <div class="body-text" style="text-align: center; margin-top: 18px; font-size: 15px;">
+      Error handling is centralised in a <code>_fetch_json</code> helper — network errors and
+      <code>404 / 5xx</code> responses become clear <code>ValueError</code>s Claude can reason about.
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">6 / 8</div>
+  </section>
+
+  <!-- SLIDE 7 — Architecture & Install -->
+  <section class="slide scrollable" data-slide="7">
+    <h1>Architecture &amp; Installation</h1>
+    <p class="subtitle">
+      The server is just a Python script. Claude talks to it over stdio; it talks to npm over HTTPS.
+    </p>
+
+    <div class="arch">
+      <div class="arch-row">
+        <div class="arch-box claude">Claude Code<small>or any MCP client</small></div>
+        <div class="arch-arrow">⇄</div>
+        <div class="arch-box server">depverse<small>mcp_server.py (FastMCP)</small></div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box npm">npm Registry<small>registry.npmjs.org</small></div>
+      </div>
+      <div class="arch-row" style="margin-top: -8px;">
+        <div class="arch-label">JSON-RPC over stdio</div>
+        <div style="width: 30px;"></div>
+        <div class="arch-label">HTTPS + httpx</div>
+      </div>
+      <div class="arch-row">
+        <div style="flex: 1;"></div>
+        <div class="arch-box server" style="font-size: 14px; padding: 10px 16px;">fallback for changelogs</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box gh">GitHub API<small>releases / raw CHANGELOG.md</small></div>
+      </div>
+    </div>
+
+    <div class="setup-steps" style="margin-top: 22px;">
+      <div class="step-box">
+        <div class="step-head">
+          <span class="step-num">1</span>
+          <span class="step-title">Register with Claude Code</span>
+        </div>
+<pre class="code-snippet"><span class="cmt"># from inside cli_project/</span>
+claude mcp add depverse <span class="kw">--scope</span> project \
+  <span class="kw">--</span> uv --directory "$(pwd)" run mcp_server.py</pre>
+      </div>
+
+      <div class="step-box" style="border-left-color: var(--tan);">
+        <div class="step-head">
+          <span class="step-num" style="background: var(--terracotta-dark);">2</span>
+          <span class="step-title">Restart &amp; Verify</span>
+        </div>
+<pre class="code-snippet"><span class="cmt"># restart Claude Code, then:</span>
+/mcp
+
+<span class="cmt"># should list: depverse   → 18 tools</span></pre>
+      </div>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">7 / 8</div>
+  </section>
+
+  <!-- SLIDE 8 — Example queries -->
+  <section class="slide scrollable" data-slide="8">
+    <h1>Try It — Example Queries</h1>
+    <p class="subtitle">
+      Ask Claude any of these in natural language — it picks the right tool automatically.
+    </p>
+
+    <div class="examples">
+      <div class="example">
+        <div class="example-q">"What's the latest version of express?"</div>
+        <div class="example-a">Claude calls <code>get_latest_version(package_name="express")</code>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"How many versions of lodash exist on npm?"</div>
+        <div class="example-a">Calls <code>get_all_versions</code> and reports the <code>count</code>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"What are react's dist-tags right now?"</div>
+        <div class="example-a">Calls <code>get_dist_tags(package_name="react")</code> — shows <em>latest, beta, next, canary</em>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"What changed in react 18.2.0?"</div>
+        <div class="example-a">Calls <code>get_changelog(package_name="react", version="18.2.0")</code> — returns GitHub release body.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"How big is the react package when unpacked?"</div>
+        <div class="example-a">Calls <code>get_package_size</code> — returns bytes, human-readable size, and file count.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"What license does express use?"</div>
+        <div class="example-a">Calls <code>get_package_license(package_name="express")</code>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"Show me the README for zod"</div>
+        <div class="example-a">Calls <code>get_package_readme</code> and streams back the markdown.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"Where is the source code for vue hosted?"</div>
+        <div class="example-a">Calls <code>get_package_repository</code> — returns the repo URL and GitHub slug.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"What are the peer dependencies of react-dom?"</div>
+        <div class="example-a">Calls <code>get_peer_dependencies</code> — shows the required <code>react</code> range.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"I have react 18.2.0 installed — does it work with react-dom 19?"</div>
+        <div class="example-a">Calls <code>check_peer_compatibility</code> with the installed map — returns a per-peer <code>yes/no</code>.</div>
+      </div>
+      <div class="example">
+        <div class="example-q">"Show me the full dependency tree of express depth 2"</div>
+        <div class="example-a">Calls <code>get_dependency_tree</code> with <code>max_depth=2</code>.</div>
+      </div>
+    </div>
+
+    <div class="body-text" style="text-align: center; margin-top: 22px; font-size: 16px;">
+      <strong>Why this is powerful:</strong> the same 18 tools, combined by Claude's reasoning,
+      cover virtually <span class="highlight">any question</span> about an npm package —
+      dependency audits, upgrade planning, license checks, size audits, release inspection,
+      peer-compat validation.
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">8 / 8</div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev">← Prev</button>
+  <button id="next">Next →</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  let idx = 0;
+
+  function show(i) {
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    document.getElementById('prev').disabled = i === 0;
+    document.getElementById('next').disabled = i === slides.length - 1;
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+  }
+
+  document.getElementById('prev').addEventListener('click', () => { if (idx > 0) { idx--; show(idx); } });
+  document.getElementById('next').addEventListener('click', () => { if (idx < slides.length - 1) { idx++; show(idx); } });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { if (idx < slides.length - 1) { idx++; show(idx); } }
+    else if (e.key === 'ArrowLeft') { if (idx > 0) { idx--; show(idx); } }
+    else if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+
+  show(0);
+</script>
+
+</body>
+</html>
