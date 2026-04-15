@@ -621,6 +621,42 @@
   }
   footer a { color: var(--terracotta-dark); }
 
+  /* ---------- Doc images + two-col layouts (MCP + Build sections) ---------- */
+  .doc-img {
+    display: block;
+    max-width: 100%;
+    margin: 16px auto;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 18px rgba(26, 26, 26, 0.06);
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin: 16px 0;
+  }
+  .three-col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 16px 0;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+  .panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--terracotta-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
   /* ---------- Responsive ---------- */
   @media (max-width: 900px) {
     :root { --sidebar-width: 0px; }
@@ -673,8 +709,27 @@
     <div class="sidebar-section">
       <div class="sidebar-title">Usage</div>
       <a href="#examples">Example Queries</a>
-      <a href="#mcp-primer">MCP Primer</a>
       <a href="#troubleshooting">Troubleshooting</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Explain MCP</div>
+      <a href="#mcp-what">What is MCP</a>
+      <a href="#mcp-how">How MCP Works</a>
+      <a href="#mcp-servers">MCP Servers Explained</a>
+      <a href="#mcp-messages">Message Types</a>
+      <a href="#mcp-flow">End-to-End Flow</a>
+      <a href="#mcp-faq">Common Questions</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Build MCP</div>
+      <a href="#build-overview">Overview</a>
+      <a href="#build-project">Project Walkthrough</a>
+      <a href="#build-setup">Setting Up the Server</a>
+      <a href="#build-read-tool">Reader Tool</a>
+      <a href="#build-edit-tool">Editor Tool &amp; Benefits</a>
+      <a href="#build-register">Register with Claude Code</a>
     </div>
   </aside>
 
@@ -1151,40 +1206,377 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       </div>
     </section>
 
-    <!-- ========== MCP PRIMER ========== -->
-    <section class="doc-section" id="mcp-primer">
-      <h2>MCP Primer</h2>
+    <!-- ============================================================ -->
+    <!-- EXPLAIN MCP                                                    -->
+    <!-- ============================================================ -->
+
+    <section class="doc-section" id="mcp-what">
+      <h2>What is MCP?</h2>
       <p>
-        New to the Model Context Protocol? Here's the 60-second version.
+        The <strong>Model Context Protocol (MCP)</strong> is a communication layer that provides Claude with
+        context and tools — without you writing tedious integration code.
       </p>
 
-      <h3>What MCP is</h3>
+      <img class="doc-img" src="assets/Introducing_MCP_01.png" alt="MCP architecture diagram" />
+
       <p>
-        MCP is a <strong>communication layer</strong> between LLM clients (Claude Desktop, Claude Code, Cursor, etc.)
-        and external capabilities (tools, prompts, resources). Instead of every client writing custom integrations
-        for every service, an <strong>MCP server</strong> exposes a service's capabilities as a standardized set of
-        tools, and any MCP-aware client can consume them.
+        An <strong>MCP Client</strong> (your server) connects to <strong>MCP Servers</strong> that contain tools,
+        prompts, and resources. Each MCP Server acts as an interface to some outside service — GitHub, Slack,
+        a database, or in our case, the npm Registry.
+      </p>
+    </section>
+
+    <section class="doc-section" id="mcp-how">
+      <h2>How MCP Works</h2>
+      <p>MCP shifts the burden of tool definitions and execution onto <strong>MCP Servers</strong>.</p>
+
+      <img class="doc-img" src="assets/Introducing_MCP_02.png" alt="How MCP works diagram" />
+
+      <p>
+        Instead of authoring all those GitHub tools yourself, an MCP Server for GitHub handles it — wrapping
+        functionality and exposing it as a <strong>standardized set of tools</strong>. Any MCP-aware client
+        (Claude Code, Claude Desktop, Cursor) can immediately use it.
+      </p>
+    </section>
+
+    <section class="doc-section" id="mcp-servers">
+      <h2>MCP Servers Explained</h2>
+      <p>
+        <strong>MCP Servers</strong> provide access to data or functionality implemented by some outside service.
       </p>
 
-      <h3>Message types</h3>
-      <ul>
-        <li><strong>ListToolsRequest</strong> / <strong>ListToolsResult</strong> — client asks what tools the server exposes.</li>
-        <li><strong>CallToolRequest</strong> / <strong>CallToolResult</strong> — client asks the server to run a specific tool with arguments.</li>
-        <li><strong>ListPrompts / GetPrompt</strong> — pre-defined prompt templates (e.g. slash commands).</li>
-        <li><strong>ReadResource</strong> — read-only data exposed by the server.</li>
-      </ul>
+      <img class="doc-img" src="assets/Introducing_MCP_03.png" alt="MCP Server for GitHub example" />
+
+      <p>
+        The MCP Server for GitHub contains tools like <code>get_repos()</code> and connects directly to GitHub's API.
+        Your client talks to the MCP server, which handles all the GitHub-specific details.
+      </p>
+    </section>
+
+    <section class="doc-section" id="mcp-messages">
+      <h2>MCP Message Types</h2>
+      <p>
+        Once connected, the client and server exchange specific message types defined in the MCP specification.
+      </p>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-title">List Tools</div>
+          <img class="doc-img" src="assets/MCP_Clients_04.png" alt="ListTools request and result" style="margin-top: 0;" />
+          <p style="margin-top: 10px; font-size: 14px;">
+            <strong>ListToolsRequest / ListToolsResult</strong> — the client asks the server
+            <em>"what tools do you provide?"</em> and gets back a list of available tools.
+          </p>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Call Tool</div>
+          <img class="doc-img" src="assets/MCP_Clients_05.png" alt="CallTool request and result" style="margin-top: 0;" />
+          <p style="margin-top: 10px; font-size: 14px;">
+            <strong>CallToolRequest / CallToolResult</strong> — the client asks the server to run a specific
+            tool with given arguments, then receives the results.
+          </p>
+        </div>
+      </div>
 
       <h3>Transports</h3>
-      <p>MCP is transport-agnostic. Common choices:</p>
-      <ul>
-        <li><strong>stdio</strong> — for local servers (what Depverse uses).</li>
-        <li><strong>HTTP / SSE / WebSockets</strong> — for remote servers.</li>
-      </ul>
-
       <p>
-        For a deeper dive, see the
-        <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">official MCP docs</a>.
+        These messages are transport-agnostic — they travel over any channel that reliably carries JSON-RPC.
+        In practice:
       </p>
+      <ul>
+        <li><strong>stdio</strong> — local servers (what Depverse uses).</li>
+        <li><strong>HTTP / SSE / WebSockets</strong> — remote servers.</li>
+      </ul>
+      <p>You're free to pick whichever transport fits your setup. The message contract stays the same.</p>
+    </section>
+
+    <section class="doc-section" id="mcp-flow">
+      <h2>End-to-End Flow</h2>
+      <p>
+        A user asks <em>"What repositories do I have?"</em> — here's how the query flows through every piece of
+        the system.
+      </p>
+
+      <div class="two-col">
+        <div>
+          <ol style="padding-left: 18px;">
+            <li><strong>User Query</strong> — the user submits their question to your server.</li>
+            <li><strong>Tool Discovery</strong> — your server needs to know what tools are available to send to Claude.</li>
+            <li><strong>List Tools Exchange</strong> — your server asks the MCP client for available tools.</li>
+            <li><strong>MCP Communication</strong> — the MCP client sends a <code>ListToolsRequest</code> and receives a <code>ListToolsResult</code>.</li>
+            <li><strong>Claude Request</strong> — your server sends the query + tools to Claude.</li>
+            <li><strong>Tool Use Decision</strong> — Claude decides it needs to call a tool.</li>
+            <li><strong>Tool Execution</strong> — your server asks the MCP client to run the tool.</li>
+            <li><strong>External API Call</strong> — the MCP server makes the actual GitHub API call.</li>
+            <li><strong>Results Flow Back</strong> — GitHub responds, data flows back as a <code>CallToolResult</code>.</li>
+            <li><strong>Tool Result to Claude</strong> — results sent back to Claude.</li>
+            <li><strong>Final Response</strong> — Claude formulates an answer.</li>
+            <li><strong>User Gets Answer</strong> — response delivered to the user.</li>
+          </ol>
+        </div>
+        <div>
+          <img class="doc-img" src="assets/MCP_Clients_06.png" alt="Full MCP request flow sequence diagram" />
+        </div>
+      </div>
+
+      <div class="callout">
+        Understanding this flow is crucial — you'll see all these pieces when building your own MCP clients and
+        servers in the next section.
+      </div>
+    </section>
+
+    <section class="doc-section" id="mcp-faq">
+      <h2>Common Questions</h2>
+
+      <h3>Who authors MCP Servers?</h3>
+      <p>
+        Anyone can create an MCP server implementation. Often, service providers themselves will make their own
+        official implementations — for example, AWS might release an official MCP server with tools for their
+        various services.
+      </p>
+
+      <h3>How is this different from calling APIs directly?</h3>
+      <p>
+        MCP servers provide tool schemas and functions already defined for you. If you call an API directly,
+        you'll be authoring those tool definitions on your own. MCP saves you that implementation work.
+      </p>
+
+      <h3>Isn't MCP just the same as tool use?</h3>
+      <p>
+        A common misconception. MCP servers and tool use are <strong>complementary</strong> but different concepts.
+        MCP servers provide tool schemas and functions already defined for you; tool use is how Claude actually
+        calls those tools. The key difference is <strong>who does the work</strong> — with MCP, someone else has
+        already implemented the tools for you.
+      </p>
+
+      <div class="callout">
+        <strong>The benefit:</strong> instead of maintaining a complex set of integrations yourself, you leverage
+        MCP servers that handle the heavy lifting of connecting to external services.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- BUILD MCP                                                      -->
+    <!-- ============================================================ -->
+
+    <section class="doc-section" id="build-overview">
+      <h2>Building an MCP Server</h2>
+      <p>
+        Writing an MCP server becomes much simpler when you use the official <strong>Python SDK</strong> —
+        define tools with decorators and let the SDK handle the JSON schema heavy lifting.
+      </p>
+
+      <img class="doc-img" src="assets/MCP_07.png" alt="Our MCP Server with document tools" style="max-width: 520px;" />
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-title">Example — Document Management Server</div>
+          <p style="font-size: 14px;">Two core tools:</p>
+          <ul style="font-size: 14px;">
+            <li><strong>Read a document</strong> — fetch content by document ID.</li>
+            <li><strong>Update a document</strong> — overwrite content for a given ID.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <div class="panel-title">In-memory storage</div>
+          <p style="font-size: 14px;">All documents live in a plain Python dictionary — keys are document IDs, values are the content.</p>
+<pre style="margin-top: 6px;">docs = {
+  "document.pdf":     "...",
+  "spreadsheet.xlsx": "...",
+  "report.txt":       "...",
+  "spec.md":          "...",
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="build-project">
+      <h2>Project Walkthrough</h2>
+      <p>
+        A CLI chat app where Claude talks to a local <strong>FastMCP</strong> document server via <strong>stdio</strong>.
+      </p>
+
+      <h3>File structure</h3>
+<pre>cli_project/
+├── main.py            <span class="cmt"># entry point: wires everything</span>
+├── mcp_server.py      <span class="cmt"># FastMCP server (docs dict)</span>
+├── mcp_client.py      <span class="cmt"># MCPClient wrapper (stdio)</span>
+├── .env               <span class="cmt"># ANTHROPIC_API_KEY, CLAUDE_MODEL</span>
+└── core/
+    ├── claude.py      <span class="cmt"># Anthropic SDK wrapper</span>
+    ├── chat.py        <span class="cmt"># base chat loop</span>
+    ├── cli_chat.py    <span class="cmt"># @mentions + /commands</span>
+    ├── cli.py         <span class="cmt"># prompt-toolkit UI</span>
+    └── tools.py       <span class="cmt"># tool-call dispatch</span></pre>
+
+      <h3>How it runs</h3>
+      <ol>
+        <li><strong>main.py</strong> loads <code>.env</code>, creates a <code>Claude</code> service, then spawns <code>mcp_server.py</code> as a subprocess over stdio.</li>
+        <li><strong>MCPClient</strong> opens a session, calls <code>list_tools()</code> / <code>list_prompts()</code> to discover what the server offers.</li>
+        <li><strong>CliChat</strong> takes user input, resolves <code>@docs</code> and <code>/commands</code>, sends messages to Claude.</li>
+        <li>Claude decides to <strong>call a tool</strong> → <code>MCPClient.call_tool()</code> → the server runs it on the in-memory <code>docs</code> dict.</li>
+        <li>Tool result flows back to Claude → final answer → displayed in the CLI.</li>
+      </ol>
+
+      <h3>Key features</h3>
+      <div class="three-col">
+        <div class="panel">
+          <div class="panel-title">@ Document Mentions</div>
+          <p style="font-size: 13.5px;">Type <code>@deposition.md</code> to inline that document's content into Claude's context.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-title">/ Slash Commands</div>
+          <p style="font-size: 13.5px;">Type <code>/summarize report.pdf</code> to invoke a <strong>prompt</strong> defined by the MCP server.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-title">🛠 Tool Use</div>
+          <p style="font-size: 13.5px;">Claude autonomously calls <code>read_doc</code> / <code>edit_doc</code> tools exposed by the server.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="build-setup">
+      <h2>Setting Up the MCP Server</h2>
+      <p>The Python MCP SDK makes server creation straightforward — initialize with a single line.</p>
+
+      <h3>Initialize the server</h3>
+<pre><span class="kw">from</span> mcp.server.fastmcp <span class="kw">import</span> FastMCP
+
+mcp = <span class="cls">FastMCP</span>(<span class="str">"DocumentMCP"</span>, log_level=<span class="str">"ERROR"</span>)</pre>
+      <p>
+        <code>FastMCP</code> is the high-level helper from the MCP SDK that registers tools, resources, and
+        prompts behind a clean decorator API.
+      </p>
+
+      <h3>Storage — plain Python dict</h3>
+<pre>docs = {
+    <span class="str">"deposition.md"</span>:  <span class="str">"... Angela Smith, P.E."</span>,
+    <span class="str">"report.pdf"</span>:     <span class="str">"... 20m condenser tower."</span>,
+    <span class="str">"financials.docx"</span>: <span class="str">"... budget and expenditures"</span>,
+    <span class="str">"outlook.pdf"</span>:    <span class="str">"... projected performance"</span>,
+    <span class="str">"plan.md"</span>:        <span class="str">"... implementation steps"</span>,
+    <span class="str">"spec.txt"</span>:       <span class="str">"... technical requirements"</span>,
+}</pre>
+
+      <div class="callout">
+        <strong>Tool definitions with decorators</strong> — instead of writing JSON schemas by hand, the SDK uses
+        Python <strong>type hints</strong> and Pydantic <code>Field</code> descriptions to auto-generate the schema
+        Claude consumes.
+      </div>
+    </section>
+
+    <section class="doc-section" id="build-read-tool">
+      <h2>Reader Tool</h2>
+      <p>The first tool reads document contents by ID. The decorator registers it; the function <em>is</em> the implementation.</p>
+
+<pre><span class="dec">@mcp.tool(</span>
+<span class="dec">    name=</span><span class="str">"read_doc_contents"</span>,
+<span class="dec">    description=</span><span class="str">"Read the contents of a document and return it as a string."</span>
+<span class="dec">)</span>
+<span class="kw">def</span> <span class="fn">read_document</span>(
+    doc_id: <span class="cls">str</span> = <span class="cls">Field</span>(description=<span class="str">"Id of the document to read"</span>)
+):
+    <span class="kw">if</span> doc_id <span class="kw">not in</span> docs:
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">f"Doc with id {doc_id} not found"</span>)
+
+    <span class="kw">return</span> docs[doc_id]</pre>
+
+      <div class="three-col">
+        <div class="panel">
+          <div class="panel-title">1 — Decorator</div>
+          <p style="font-size: 13.5px;"><code>@mcp.tool(...)</code> registers the function as a callable tool. <code>name</code> and <code>description</code> are what Claude sees when discovering tools.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-title">2 — Type Hints + Field</div>
+          <p style="font-size: 13.5px;">Parameters use Python type hints. <code>Field(description=...)</code> from Pydantic gives Claude a clear explanation of each argument.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-title">3 — Error Handling</div>
+          <p style="font-size: 13.5px;">Raising <code>ValueError</code> is idiomatic — the SDK converts Python exceptions into a tool error Claude can reason about.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="build-edit-tool">
+      <h2>Editor Tool &amp; SDK Benefits</h2>
+      <p>The second tool performs simple find-and-replace operations on documents.</p>
+
+<pre><span class="dec">@mcp.tool(</span>
+<span class="dec">    name=</span><span class="str">"edit_document"</span>,
+<span class="dec">    description=</span><span class="str">"Edit a document by replacing a string in the documents content with a new string."</span>
+<span class="dec">)</span>
+<span class="kw">def</span> <span class="fn">edit_document</span>(
+    doc_id:  <span class="cls">str</span> = <span class="cls">Field</span>(description=<span class="str">"Id of the document that will be edited"</span>),
+    old_str: <span class="cls">str</span> = <span class="cls">Field</span>(description=<span class="str">"The text to replace. Must match exactly, including whitespace."</span>),
+    new_str: <span class="cls">str</span> = <span class="cls">Field</span>(description=<span class="str">"The new text to insert in place of the old text."</span>),
+):
+    <span class="kw">if</span> doc_id <span class="kw">not in</span> docs:
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">f"Doc with id {doc_id} not found"</span>)
+
+    docs[doc_id] = docs[doc_id].replace(old_str, new_str)</pre>
+
+      <h3>Key benefits of the SDK approach</h3>
+      <ul>
+        <li>No manual JSON schema writing required.</li>
+        <li>Type hints provide automatic validation.</li>
+        <li>Clear parameter descriptions help Claude understand tool usage.</li>
+        <li>Error handling integrates naturally with Python exceptions.</li>
+        <li>Tool registration happens automatically through decorators.</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="build-register">
+      <h2>Register Your Server with Claude Code</h2>
+      <p>
+        Claude Code can itself consume MCP servers. Register yours and your tools become available in every
+        conversation — no API key, no custom CLI.
+      </p>
+
+      <h3>Project scope (recommended)</h3>
+      <p>Writes a <code>.mcp.json</code> file in the project directory. Server is only active when Claude Code is opened inside this folder.</p>
+<pre>$ cd /path/to/your_project
+$ claude mcp add your-server <span class="kw">--scope</span> project \
+    <span class="kw">--</span> uv --directory "/path/to/your_project" \
+        run mcp_server.py</pre>
+
+      <h3>User scope (everywhere)</h3>
+      <p>Adds it to your Claude Code user config. Available in every project you open on this machine.</p>
+<pre>$ claude mcp add your-server <span class="kw">--scope</span> user \
+    <span class="kw">--</span> uv --directory "/path/to/your_project" \
+        run mcp_server.py</pre>
+
+      <h3>Anatomy of the command</h3>
+<pre>claude mcp add <span class="str">&lt;name&gt;</span>           <span class="cmt"># how Claude Code labels it</span>
+  <span class="kw">--scope</span> project|user      <span class="cmt"># where to store the config</span>
+  <span class="kw">--</span>                       <span class="cmt"># everything after is the launch cmd</span>
+  uv --directory ... run mcp_server.py   <span class="cmt"># spawns server over stdio</span></pre>
+
+      <h3>Verify the registration</h3>
+      <ol>
+        <li><strong>Restart Claude Code</strong> — MCP servers are loaded at startup.</li>
+        <li>Run <code>/mcp</code> inside Claude Code → the server should appear with its tools listed.</li>
+        <li>Ask Claude to use it — e.g. <em>"What's the latest version of react on npm?"</em>.</li>
+      </ol>
+
+      <h3>Other useful commands</h3>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-name">claude mcp list</div>
+          <div class="card-desc">Show all registered servers.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">claude mcp get &lt;name&gt;</div>
+          <div class="card-desc">Show the config for one server.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">claude mcp remove &lt;name&gt;</div>
+          <div class="card-desc">Unregister the server.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">/mcp</div>
+          <div class="card-desc">Inspect servers inside Claude Code.</div>
+        </div>
+      </div>
     </section>
 
     <!-- ========== TROUBLESHOOTING ========== -->
