@@ -1081,15 +1081,15 @@
 <div class="progress" id="progress"></div>
 
 <div class="deck-switch">
-  <button class="switch-btn active" data-deck="explain">Explain MCP</button>
+  <button class="switch-btn active" data-deck="depverse">depverse</button>
+  <button class="switch-btn" data-deck="explain">Explain MCP</button>
   <button class="switch-btn" data-deck="build">Build MCP</button>
-  <button class="switch-btn" data-deck="depverse">depverse</button>
 </div>
 
 <!-- =========================================================== -->
 <!-- DECK 1 — Explain MCP                                          -->
 <!-- =========================================================== -->
-<div class="deck active" data-deck="explain">
+<div class="deck" data-deck="explain">
 
   <section class="slide active" data-slide="1">
     <h1>Model Context Protocol (MCP)</h1>
@@ -1636,7 +1636,7 @@ $ claude mcp add depverse <span class="kw">--scope</span> project \
 <!-- =========================================================== -->
 <!-- DECK 3 — depverse                                             -->
 <!-- =========================================================== -->
-<div class="deck" data-deck="depverse">
+<div class="deck active" data-deck="depverse">
 
   <section class="slide active" data-slide="1">
     <div class="hero">
@@ -2131,8 +2131,8 @@ claude mcp add depverse <span class="kw">--scope</span> project \
   const prevBtn = document.getElementById('prev');
   const nextBtn = document.getElementById('next');
 
-  let activeDeckKey = 'explain';
-  const slideIndex = { explain: 0, build: 0, depverse: 0 };
+  let activeDeckKey = 'depverse';
+  const slideIndex = { depverse: 0, explain: 0, build: 0 };
 
   function getActiveDeck() {
     return document.querySelector(`.deck[data-deck="${activeDeckKey}"]`);
