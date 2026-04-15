@@ -1664,7 +1664,7 @@ $ claude mcp add Depverse <span class="kw">--scope</span> project \
     </div>
 
     <div class="brand">yash-neural</div>
-    <div class="page-num">1 / 8</div>
+    <div class="page-num">1 / 9</div>
   </section>
 
   <section class="slide scrollable" data-slide="2">
@@ -1723,7 +1723,7 @@ $ claude mcp add Depverse <span class="kw">--scope</span> project \
     </div>
 
     <div class="brand">yash-neural</div>
-    <div class="page-num">2 / 8</div>
+    <div class="page-num">2 / 9</div>
   </section>
 
   <section class="slide scrollable" data-slide="3">
@@ -1767,7 +1767,7 @@ $ claude mcp add Depverse <span class="kw">--scope</span> project \
     </div>
 
     <div class="brand">yash-neural</div>
-    <div class="page-num">3 / 8</div>
+    <div class="page-num">3 / 9</div>
   </section>
 
   <section class="slide scrollable" data-slide="4">
@@ -1816,7 +1816,7 @@ $ claude mcp add Depverse <span class="kw">--scope</span> project \
     </div>
 
     <div class="brand">yash-neural</div>
-    <div class="page-num">4 / 8</div>
+    <div class="page-num">4 / 9</div>
   </section>
 
   <section class="slide scrollable" data-slide="5">
@@ -1859,7 +1859,7 @@ $ claude mcp add Depverse <span class="kw">--scope</span> project \
     </div>
 
     <div class="brand">yash-neural</div>
-    <div class="page-num">5 / 8</div>
+    <div class="page-num">5 / 9</div>
   </section>
 
   <section class="slide scrollable" data-slide="6">
@@ -1996,7 +1996,7 @@ $ claude mcp add Depverse <span class="kw">--scope</span> project \
     </div>
 
     <div class="brand">yash-neural</div>
-    <div class="page-num">6 / 8</div>
+    <div class="page-num">6 / 9</div>
   </section>
 
   <section class="slide scrollable" data-slide="7">
@@ -2050,10 +2050,108 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
     </div>
 
     <div class="brand">yash-neural</div>
-    <div class="page-num">7 / 8</div>
+    <div class="page-num">7 / 9</div>
   </section>
 
   <section class="slide scrollable" data-slide="8">
+    <h1>Installation &amp; Setup</h1>
+    <p class="subtitle">
+      Get Depverse running locally in under 2 minutes.
+    </p>
+
+    <div class="steps-row" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 14px;">
+      <div class="step-card">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Prerequisites</strong>
+          <p>Python 3.10+, an Anthropic API key, and <code>uv</code> (recommended).</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Clone</strong>
+          <p>Grab the repo from GitHub.</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Install deps</strong>
+          <p>Let <code>uv</code> resolve the lock file.</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Configure <code>.env</code></strong>
+          <p>Set your Anthropic API key and model.</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <strong>Register</strong>
+          <p>Attach Depverse to Claude Code.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-grid">
+      <div class="code-panel">
+        <div class="code-label">1 — Install uv (once)</div>
+<pre class="code-snippet"><span class="cmt"># macOS / Linux</span>
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+<span class="cmt"># or via pip</span>
+pip install uv</pre>
+      </div>
+
+      <div class="code-panel">
+        <div class="code-label">2 — Clone &amp; install</div>
+<pre class="code-snippet">git clone https://github.com/yash-neural/Depverse.git
+cd Depverse
+uv venv
+<span class="kw">source</span> .venv/bin/activate     <span class="cmt"># Windows: .venv\Scripts\activate</span>
+uv pip install -e .</pre>
+      </div>
+
+      <div class="code-panel">
+        <div class="code-label">3 — Create <code>.env</code></div>
+<pre class="code-snippet"><span class="cmt"># in the project root</span>
+ANTHROPIC_API_KEY=<span class="str">"sk-ant-..."</span>
+CLAUDE_MODEL=<span class="str">"claude-sonnet-4-5"</span>
+USE_UV=<span class="str">"1"</span></pre>
+        <p class="code-caption">
+          Get an API key from <code>console.anthropic.com</code>.
+        </p>
+      </div>
+
+      <div class="code-panel">
+        <div class="code-label">4 — Try the CLI chat</div>
+<pre class="code-snippet">uv run main.py
+
+<span class="cmt"># you'll see a "&gt; " prompt — try:</span>
+&gt; what's the latest version of react?
+&gt; show me the peer deps of react-dom</pre>
+      </div>
+    </div>
+
+    <div class="callout-light" style="margin-top: 14px;">
+      <strong>Plug it into Claude Code</strong> — register the server once and its 18 tools
+      are available in every Claude Code session:
+<pre class="code-snippet" style="margin-top: 8px;">claude mcp add Depverse <span class="kw">--scope</span> project \
+  <span class="kw">--</span> uv --directory "$(pwd)" run mcp_server.py
+
+<span class="cmt"># restart Claude Code, then verify:</span>
+/mcp   <span class="cmt"># should list: Depverse → 18 tools</span></pre>
+    </div>
+
+    <div class="brand">yash-neural</div>
+    <div class="page-num">8 / 9</div>
+  </section>
+
+  <section class="slide scrollable" data-slide="9">
     <h1>Try It — Example Queries</h1>
     <p class="subtitle">
       Ask Claude any of these in natural language — it picks the right tool automatically.
@@ -2114,7 +2212,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
     </div>
 
     <div class="brand">yash-neural</div>
-    <div class="page-num">8 / 8</div>
+    <div class="page-num">9 / 9</div>
   </section>
 
 </div>
