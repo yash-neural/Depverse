@@ -1074,6 +1074,202 @@
     padding: 1px 5px;
     border-radius: 4px;
   }
+
+  /* ============================================================ */
+  /* Polish pass — subtle professional enhancements               */
+  /* ============================================================ */
+
+  html, body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Smooth fade-in for active slides */
+  @keyframes slideFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .slide.active {
+    animation: slideFadeIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* Gradient progress bar with glow */
+  .progress {
+    height: 3px;
+    background: linear-gradient(90deg, var(--terracotta-dark), var(--terracotta), #E8A87C);
+    box-shadow: 0 0 12px rgba(192, 135, 99, 0.4);
+  }
+
+  /* Elevated panels — subtle depth */
+  .msg-card,
+  .flow-steps,
+  .flow-image,
+  .proj-col,
+  .proj-data,
+  .code-panel,
+  .scope-card,
+  .step-box,
+  .step-card,
+  .cmd-ref,
+  .benefits-panel,
+  .example,
+  .tool-card,
+  .explain-card,
+  .value-col,
+  .ba-card,
+  .note-card,
+  .arch-box {
+    box-shadow:
+      0 1px 2px rgba(26, 26, 26, 0.04),
+      0 4px 14px rgba(26, 26, 26, 0.05);
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+                box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* Hover lift on interactive-feeling cards */
+  .tool-card:hover,
+  .example:hover,
+  .explain-card:hover,
+  .step-card:hover,
+  .scope-card:hover,
+  .step-box:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 2px 4px rgba(26, 26, 26, 0.06),
+      0 12px 28px rgba(192, 135, 99, 0.18);
+  }
+
+  /* Arch diagram blocks get a gentle hover too */
+  .arch-box {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .arch-box:hover {
+    transform: translateY(-2px);
+  }
+
+  /* Refined deck switcher */
+  .deck-switch {
+    box-shadow:
+      0 2px 6px rgba(26, 26, 26, 0.06),
+      0 8px 24px rgba(26, 26, 26, 0.08);
+    backdrop-filter: blur(6px);
+    background: rgba(232, 230, 223, 0.92);
+  }
+  .switch-btn {
+    position: relative;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: background 0.25s ease, color 0.25s ease, transform 0.2s ease;
+  }
+  .switch-btn:hover:not(.active) {
+    background: rgba(192, 135, 99, 0.12);
+    transform: translateY(-1px);
+  }
+  .switch-btn.active {
+    box-shadow: 0 4px 14px rgba(192, 135, 99, 0.35);
+  }
+
+  /* Hero title — subtle gradient */
+  .hero-title {
+    background: linear-gradient(135deg, var(--ink) 0%, var(--terracotta-dark) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+  }
+
+  .hero-node {
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease;
+    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.08);
+  }
+  .hero-node:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 10px 28px rgba(192, 135, 99, 0.25);
+  }
+  .hero-node.accent:hover {
+    box-shadow: 0 10px 28px rgba(167, 111, 79, 0.45);
+  }
+
+  /* Nav buttons — softer hover */
+  .nav button {
+    box-shadow: 0 4px 14px rgba(192, 135, 99, 0.25);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+  .nav button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(192, 135, 99, 0.35);
+  }
+  .nav button:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  /* Code snippet — refined shadow + selection color */
+  pre.code-snippet,
+  .code-snippet {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 4px 18px rgba(26, 26, 26, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  pre.code-snippet::selection,
+  pre.code-snippet *::selection {
+    background: rgba(192, 135, 99, 0.35);
+    color: #fff;
+  }
+
+  /* Headings — crisper letter spacing */
+  .slide h1 { letter-spacing: -0.015em; }
+
+  /* Softer scrollbars on scrollable slides (WebKit) */
+  .slide.scrollable.active::-webkit-scrollbar { width: 10px; }
+  .slide.scrollable.active::-webkit-scrollbar-track { background: transparent; }
+  .slide.scrollable.active::-webkit-scrollbar-thumb {
+    background: rgba(192, 135, 99, 0.35);
+    border-radius: 8px;
+    border: 2px solid var(--bg);
+  }
+  .slide.scrollable.active::-webkit-scrollbar-thumb:hover {
+    background: rgba(192, 135, 99, 0.55);
+  }
+
+  /* Table rows — subtle hover */
+  .ref-row:not(.head) { transition: background 0.2s ease; }
+  .ref-row:not(.head):hover {
+    background: rgba(192, 135, 99, 0.08) !important;
+  }
+
+  /* Pill + badge micro-interactions */
+  .comm-pill,
+  .feat-sym,
+  .check,
+  .step-num,
+  .scope-badge,
+  .explain-title .num {
+    box-shadow: 0 2px 6px rgba(192, 135, 99, 0.25);
+  }
+
+  /* Brand + page number — monospace restraint */
+  .brand, .page-num {
+    opacity: 0.7;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+  }
+
+  /* Focus states — accessibility + polish */
+  button:focus-visible,
+  .switch-btn:focus-visible {
+    outline: 2px solid var(--terracotta);
+    outline-offset: 3px;
+  }
+
+  /* Softer slide background — extremely subtle warmth */
+  .slide {
+    background: linear-gradient(180deg, var(--bg) 0%, #EEEDE5 100%);
+  }
+
 </style>
 </head>
 <body>
