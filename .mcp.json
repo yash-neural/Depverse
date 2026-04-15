@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "depverse": {
+    "Depverse": {
       "type": "stdio",
       "command": "uv",
       "args": [

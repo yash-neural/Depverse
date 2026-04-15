@@ -160,7 +160,7 @@ Example (`.mcp.json` / Claude Desktop `claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
-    "depverse": {
+    "Depverse": {
       "type": "stdio",
       "command": "uv",
       "args": [

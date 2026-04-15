@@ -1558,7 +1558,7 @@ mcp = <span class="cls">FastMCP</span>(<span class="str">"DocumentMCP"</span>, l
           is only active when you open Claude Code inside this folder.
         </p>
 <pre class="code-snippet">$ cd /path/to/cli_project
-$ claude mcp add depverse <span class="kw">--scope</span> project \
+$ claude mcp add Depverse <span class="kw">--scope</span> project \
     <span class="kw">--</span> uv --directory "/path/to/cli_project" \
         run mcp_server.py</pre>
       </div>
@@ -1572,7 +1572,7 @@ $ claude mcp add depverse <span class="kw">--scope</span> project \
           Adds it to your Claude Code user config. Available in every project
           you open on this machine.
         </p>
-<pre class="code-snippet">$ claude mcp add depverse <span class="kw">--scope</span> user \
+<pre class="code-snippet">$ claude mcp add Depverse <span class="kw">--scope</span> user \
     <span class="kw">--</span> uv --directory "/path/to/cli_project" \
         run mcp_server.py</pre>
       </div>
@@ -1621,8 +1621,8 @@ $ claude mcp add depverse <span class="kw">--scope</span> project \
       <div class="cmd-ref-title">Other Useful Commands</div>
       <div class="cmd-grid">
         <div class="cmd-item"><code>claude mcp list</code><span>Show all registered servers</span></div>
-        <div class="cmd-item"><code>claude mcp get depverse</code><span>Show the config for one server</span></div>
-        <div class="cmd-item"><code>claude mcp remove depverse</code><span>Unregister the server</span></div>
+        <div class="cmd-item"><code>claude mcp get Depverse</code><span>Show the config for one server</span></div>
+        <div class="cmd-item"><code>claude mcp remove Depverse</code><span>Unregister the server</span></div>
         <div class="cmd-item"><code>/mcp</code><span>Inspect servers inside Claude Code</span></div>
       </div>
     </div>
@@ -2033,7 +2033,7 @@ $ claude mcp add depverse <span class="kw">--scope</span> project \
           <span class="step-title">Register with Claude Code</span>
         </div>
 <pre class="code-snippet"><span class="cmt"># from inside cli_project/</span>
-claude mcp add depverse <span class="kw">--scope</span> project \
+claude mcp add Depverse <span class="kw">--scope</span> project \
   <span class="kw">--</span> uv --directory "$(pwd)" run mcp_server.py</pre>
       </div>
 
@@ -2045,7 +2045,7 @@ claude mcp add depverse <span class="kw">--scope</span> project \
 <pre class="code-snippet"><span class="cmt"># restart Claude Code, then:</span>
 /mcp
 
-<span class="cmt"># should list: depverse   → 18 tools</span></pre>
+<span class="cmt"># should list: Depverse   → 18 tools</span></pre>
       </div>
     </div>
 
