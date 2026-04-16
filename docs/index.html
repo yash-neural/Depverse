@@ -704,6 +704,7 @@
       <a href="#tools-package" class="sub">Package Info Tools</a>
       <a href="#tools-dependency" class="sub">Dependency Tools</a>
       <a href="#tools-security" class="sub">Security &amp; Health Tools</a>
+      <a href="#tools-compat" class="sub">Compatibility &amp; Update Tools</a>
       <a href="#tool-reference" class="sub">Full Reference</a>
     </div>
 
@@ -742,7 +743,7 @@
         <span class="badge accent">v0.1.0</span>
         <span class="badge">Python 3.10+</span>
         <span class="badge">MCP 1.8.0+</span>
-        <span class="badge">23 Tools</span>
+        <span class="badge">28 Tools</span>
       </div>
 
       <h1 class="hero-title">Depverse Documentation</h1>
@@ -754,7 +755,7 @@
 
       <div class="cta-row">
         <a class="btn primary" href="#installation">Install in 2 minutes →</a>
-        <a class="btn secondary" href="#tool-reference">Browse all 23 tools</a>
+        <a class="btn secondary" href="#tool-reference">Browse all 28 tools →</a>
         <a class="btn secondary" href="https://github.com/yash-neural/Depverse" target="_blank" rel="noopener">View on GitHub</a>
       </div>
 
@@ -845,7 +846,7 @@
       <h3>Project layout</h3>
 <pre><span class="cmt"># repo root</span>
 Depverse/
-├── mcp_server.py       <span class="cmt"># The MCP server — all 23 tools</span>
+├── mcp_server.py       <span class="cmt"># The MCP server — all 28 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
 ├── main.py             <span class="cmt"># Entrypoint for the CLI chat</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
@@ -925,7 +926,7 @@ USE_UV=<span class="str">"1"</span>        <span class="cmt"># set to 1 so main.
     <section class="doc-section" id="register-claude-code">
       <h2>Register with Claude Code</h2>
       <p>
-        Claude Code itself is an MCP client. Once registered, Depverse's 23 tools are available in every Claude Code
+        Claude Code itself is an MCP client. Once registered, Depverse's 28 tools are available in every Claude Code
         conversation — no API key needed on your side, no custom CLI.
       </p>
 
@@ -947,7 +948,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       <p>Restart Claude Code, then run:</p>
 <pre>/mcp
 
-<span class="cmt"># should list: Depverse   → 23 tools</span></pre>
+<span class="cmt"># should list: Depverse   → 28 tools</span></pre>
 
       <h3>Other useful commands</h3>
       <div class="cards-grid">
@@ -990,7 +991,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
     <!-- ========== TOOLS ========== -->
     <section class="doc-section" id="tools-version">
       <h2>Tools</h2>
-      <p>Depverse exposes <strong>23 tools</strong> in four groups. All return JSON; errors surface as typed MCP tool errors.</p>
+      <p>Depverse exposes <strong>28 tools</strong> in five groups. All return JSON; errors surface as typed MCP tool errors.</p>
 
       <h3 id="tools-version-h">Version tools <span style="color: var(--muted); font-weight: 400;">(6)</span></h3>
       <p>These answer <em>"which version?"</em> questions.</p>
@@ -1142,6 +1143,41 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       </div>
     </section>
 
+    <section class="doc-section" id="tools-compat">
+      <h3>Compatibility &amp; Update tools <span style="color: var(--muted); font-weight: 400;">(5)</span></h3>
+      <p>These answer <em>"will this upgrade break anything?"</em> questions.</p>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-name">check_node_compatibility</div>
+          <div class="card-title">Engines Field</div>
+          <div class="card-desc">What Node (and npm / yarn) versions does this package require? Reads the manifest's <code>engines</code> field.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">compare_versions</div>
+          <div class="card-title">Version Diff</div>
+          <div class="card-desc">Added / removed / range-changed deps (runtime + dev + peer) between two versions, plus engines changes.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_breaking_changes</div>
+          <div class="card-title">Major Bump Detector</div>
+          <div class="card-desc">Flags direct and peer dependencies whose declared range crossed a <strong>major</strong> boundary — the usual source of breaking changes.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">resolve_semver</div>
+          <div class="card-title">Range Resolver</div>
+          <div class="card-desc">Resolves a range like <code>^18.0.0</code> or <code>~4.17.20</code> to the highest published version that satisfies it.</div>
+        </div>
+        <div class="card" style="grid-column: span 2;">
+          <div class="card-name">check_outdated</div>
+          <div class="card-title">Bulk Update Check</div>
+          <div class="card-desc">
+            Pass <code>{package_name: installed_version}</code> and get each one's latest + a gap level
+            (<code>major</code> / <code>minor</code> / <code>patch</code>). Parallel fan-out — fast even for whole lock files.
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ========== FULL REFERENCE TABLE ========== -->
     <section class="doc-section" id="tool-reference">
       <h2>Full tool reference</h2>
@@ -1187,6 +1223,13 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
           <tr><td><code>check_maintainer_activity</code></td><td><code>package_name</code></td><td><code>GET /{pkg}</code> (reads <code>time</code>)</td><td><code>{ status, days_since_last_publish, abandoned }</code></td></tr>
           <tr><td><code>get_download_stats</code></td><td><code>package_name</code></td><td><code>api.npmjs.org/downloads/point/*</code></td><td><code>{ last_day, last_week, last_month, popularity }</code></td></tr>
           <tr><td><code>check_typosquat_risk</code></td><td><code>package_name</code></td><td>Local Levenshtein vs. top-50 list</td><td><code>{ risk, closest_popular, edit_distance }</code></td></tr>
+
+          <tr class="group-row"><td colspan="4">Compatibility &amp; Update Tools</td></tr>
+          <tr><td><code>check_node_compatibility</code></td><td><code>package_name, version?</code></td><td><code>GET /{pkg}/{version|latest}</code></td><td><code>{ engines, node, npm, yarn }</code></td></tr>
+          <tr><td><code>compare_versions</code></td><td><code>package_name, from_version, to_version</code></td><td>Parallel manifest fetch</td><td><code>{ dependencies, dev_dependencies, peer_dependencies, engines }</code></td></tr>
+          <tr><td><code>get_breaking_changes</code></td><td><code>package_name, from_version, to_version</code></td><td>Parallel manifest fetch</td><td><code>{ breaking_major_bumps[], likely_breaking }</code></td></tr>
+          <tr><td><code>resolve_semver</code></td><td><code>package_name, version_range</code></td><td><code>GET /{pkg}</code> + local matcher</td><td><code>{ resolved, matched_count, candidates[] }</code></td></tr>
+          <tr><td><code>check_outdated</code></td><td><code>packages{ name: version }</code></td><td>Parallel <code>/{pkg}/latest</code> fetches</td><td><code>{ outdated[], up_to_date[], errors[] }</code></td></tr>
         </tbody>
       </table>
 

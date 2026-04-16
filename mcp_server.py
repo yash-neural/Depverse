@@ -1305,6 +1305,333 @@ async def check_typosquat_risk(
     }
 
 
+# ===========================================================================
+# COMPATIBILITY & UPDATE TOOLS
+# ===========================================================================
+# These answer upgrade / update planning questions:
+#   check_node_compatibility - what Node versions does this package support?
+#   compare_versions         - what changed between v1 and v2 of a package?
+#   get_breaking_changes     - which transitive deps had a major bump?
+#   resolve_semver           - resolve "^18.0.0" to a concrete version
+#   check_outdated           - bulk "is each of these packages outdated?"
+
+
+# ---------------------------------------------------------------------------
+# TOOL 24: check_node_compatibility
+# ---------------------------------------------------------------------------
+# Reads the manifest's "engines" field — commonly {"node": ">=18"}, sometimes
+# also carries "npm" or "yarn" constraints. Tells Claude whether a package
+# will even install on the user's runtime.
+@mcp.tool(
+    name="check_node_compatibility",
+    description=(
+        "Return the engines field (node / npm / yarn constraints) declared "
+        "by an npm package for a specific version, or the latest version."
+    ),
+)
+async def check_node_compatibility(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_manifest(package_name, version)
+    engines = data.get("engines", {}) or {}
+    return {
+        "package": data.get("name", package_name),
+        "version": data.get("version"),
+        "engines": engines,
+        "node":  engines.get("node", ""),
+        "npm":   engines.get("npm", ""),
+        "yarn":  engines.get("yarn", ""),
+        # Convenience flag — callers often just want to know if ANY node range
+        # is declared (absence is treated by npm as "any version allowed").
+        "has_node_constraint": bool(engines.get("node")),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 25: compare_versions
+# ---------------------------------------------------------------------------
+# Useful for upgrade planning. Fetches both version manifests in parallel and
+# diffs their dependencies / devDependencies / peerDependencies — reports
+# added, removed, and range-changed entries.
+def _diff_maps(old: dict, new: dict) -> dict:
+    """Diff two {name: range} maps — returns added, removed, changed."""
+    old_set, new_set = set(old), set(new)
+    added   = {k: new[k] for k in new_set - old_set}
+    removed = {k: old[k] for k in old_set - new_set}
+    changed = {
+        k: {"from": old[k], "to": new[k]}
+        for k in old_set & new_set
+        if old[k] != new[k]
+    }
+    return {"added": added, "removed": removed, "changed": changed}
+
+
+@mcp.tool(
+    name="compare_versions",
+    description=(
+        "Diff two versions of an npm package: which dependencies, "
+        "devDependencies, and peerDependencies were added, removed, or "
+        "range-changed between them."
+    ),
+)
+async def compare_versions(
+    package_name: str = Field(description="Exact npm package name."),
+    from_version: str = Field(description="The older version, e.g. '18.0.0'."),
+    to_version:   str = Field(description="The newer version, e.g. '19.0.0'."),
+) -> dict:
+    # Parallel fetch — keeps the tool snappy for large manifests.
+    old_manifest, new_manifest = await asyncio.gather(
+        _fetch_manifest(package_name, from_version),
+        _fetch_manifest(package_name, to_version),
+    )
+
+    return {
+        "package": package_name,
+        "from": old_manifest.get("version", from_version),
+        "to":   new_manifest.get("version", to_version),
+        "dependencies":     _diff_maps(
+            old_manifest.get("dependencies", {}) or {},
+            new_manifest.get("dependencies", {}) or {},
+        ),
+        "dev_dependencies": _diff_maps(
+            old_manifest.get("devDependencies", {}) or {},
+            new_manifest.get("devDependencies", {}) or {},
+        ),
+        "peer_dependencies": _diff_maps(
+            old_manifest.get("peerDependencies", {}) or {},
+            new_manifest.get("peerDependencies", {}) or {},
+        ),
+        # Engines changes are a common "breaking" signal on their own.
+        "engines": {
+            "from": old_manifest.get("engines", {}),
+            "to":   new_manifest.get("engines", {}),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 26: get_breaking_changes
+# ---------------------------------------------------------------------------
+# Focused on dependency bumps rather than the package's own code. We diff
+# the two versions' dependency maps and flag the ones whose declared range
+# bumped across a major version boundary (e.g. ^1.x -> ^2.x). Returns a
+# per-dep report plus a summary count — gives Claude a clear signal of what
+# a consumer upgrading from vA to vB will need to reconcile.
+def _extract_major(semver_range: str) -> int | None:
+    """Best-effort: pull the major-version digit out of an npm range."""
+    if not semver_range:
+        return None
+    # Strip common operators, then take the first number before a dot.
+    s = semver_range.strip().lstrip("^~>=<v ")
+    # "1.2.3", "1", "18.x" — all work; bail out for "*", "latest", git URLs.
+    head = s.split(".", 1)[0].split("-", 1)[0]
+    try:
+        return int(head)
+    except ValueError:
+        return None
+
+
+@mcp.tool(
+    name="get_breaking_changes",
+    description=(
+        "Compare two versions of an npm package and flag dependencies whose "
+        "declared range bumped across a MAJOR version boundary — the most "
+        "common source of breaking changes when upgrading."
+    ),
+)
+async def get_breaking_changes(
+    package_name: str = Field(description="Exact npm package name."),
+    from_version: str = Field(description="The older version."),
+    to_version:   str = Field(description="The newer version."),
+) -> dict:
+    old_manifest, new_manifest = await asyncio.gather(
+        _fetch_manifest(package_name, from_version),
+        _fetch_manifest(package_name, to_version),
+    )
+    old_deps = old_manifest.get("dependencies", {}) or {}
+    new_deps = new_manifest.get("dependencies", {}) or {}
+    old_peers = old_manifest.get("peerDependencies", {}) or {}
+    new_peers = new_manifest.get("peerDependencies", {}) or {}
+
+    def _scan(old: dict, new: dict, kind: str) -> list[dict]:
+        out = []
+        for name in set(old) & set(new):
+            old_major = _extract_major(old[name])
+            new_major = _extract_major(new[name])
+            if (old_major is not None and new_major is not None
+                    and old_major != new_major):
+                out.append({
+                    "kind": kind,
+                    "dependency": name,
+                    "from": old[name],
+                    "to":   new[name],
+                    "from_major": old_major,
+                    "to_major":   new_major,
+                })
+        return out
+
+    # Major bumps on deps are almost always breaking for consumers. Peer
+    # bumps are even more important — they force the host app to upgrade too.
+    dep_bumps  = _scan(old_deps,  new_deps,  "dependency")
+    peer_bumps = _scan(old_peers, new_peers, "peerDependency")
+
+    # Engine changes are a separate "breaking" axis worth surfacing.
+    old_node = (old_manifest.get("engines", {}) or {}).get("node", "")
+    new_node = (new_manifest.get("engines", {}) or {}).get("node", "")
+    engine_change = (
+        {"from": old_node, "to": new_node}
+        if old_node != new_node and (old_node or new_node)
+        else None
+    )
+
+    all_bumps = dep_bumps + peer_bumps
+    return {
+        "package": package_name,
+        "from": old_manifest.get("version", from_version),
+        "to":   new_manifest.get("version", to_version),
+        "breaking_major_bumps": all_bumps,
+        "total_major_bumps":    len(all_bumps),
+        "node_engine_change":   engine_change,
+        "likely_breaking":      bool(all_bumps or engine_change),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 27: resolve_semver
+# ---------------------------------------------------------------------------
+# Given an npm range (e.g. "^18.0.0"), find the HIGHEST published version
+# that satisfies it. Re-uses the tiny semver matcher from check_peer_compat
+# so we don't add a dependency.
+@mcp.tool(
+    name="resolve_semver",
+    description=(
+        "Resolve an npm semver range (e.g. '^18.0.0', '~4.17.20', '>=2 <3') "
+        "to the highest published version of the package that satisfies it."
+    ),
+)
+async def resolve_semver(
+    package_name: str = Field(description="Exact npm package name."),
+    version_range: str = Field(
+        description="Any npm-style range: '^1.2.3', '~1.2', '>=1 <2', '1.x', '*'."
+    ),
+) -> dict:
+    # Pull every published version so we can scan locally.
+    pkg = await _fetch_json(
+        f"{NPM_REGISTRY}/{package_name}",
+        not_found_msg=f"npm package '{package_name}' was not found.",
+    )
+    versions = list((pkg.get("versions", {}) or {}).keys())
+    if not versions:
+        raise ValueError(f"'{package_name}' has no published versions.")
+
+    # Walk in order and collect matches; then pick the highest by semver tuple.
+    matches = [v for v in versions if _satisfies(v, version_range) == "yes"]
+    if not matches:
+        return {
+            "package": package_name,
+            "range": version_range,
+            "resolved": None,
+            "matched_count": 0,
+            "note": "No published version matches this range.",
+        }
+
+    def _key(v: str) -> tuple:
+        parsed = _parse_semver(v)
+        return parsed if parsed is not None else (0, 0, 0)
+
+    resolved = max(matches, key=_key)
+    return {
+        "package": package_name,
+        "range": version_range,
+        "resolved": resolved,
+        "matched_count": len(matches),
+        # Show the tail of the matched list — useful for "what else would work".
+        "candidates": matches[-10:],
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 28: check_outdated
+# ---------------------------------------------------------------------------
+# Bulk "npm outdated" style check — given a map of {name: installed_version},
+# fetch each package's "latest" in parallel and flag the ones that have a
+# newer release. Cheaper and faster than running npm outdated in a sandbox.
+@mcp.tool(
+    name="check_outdated",
+    description=(
+        "Given a map of {package_name: installed_version}, report which have "
+        "newer versions on npm. Returns per-package status plus a summary."
+    ),
+)
+async def check_outdated(
+    packages: dict[str, str] = Field(
+        description="Map of {package_name: installed_version} to check."
+    ),
+) -> dict:
+    if not packages:
+        return {"checked": 0, "outdated": [], "up_to_date": [], "errors": []}
+
+    async def _check(name: str, installed: str) -> dict:
+        try:
+            data = await _fetch_json(
+                f"{NPM_REGISTRY}/{name}/latest",
+                not_found_msg=f"npm package '{name}' was not found.",
+            )
+        except ValueError as exc:
+            return {"name": name, "installed": installed, "error": str(exc)}
+
+        latest = data.get("version", "")
+        installed_t = _parse_semver(installed)
+        latest_t    = _parse_semver(latest)
+
+        # If either side doesn't parse, fall back to a plain string compare.
+        if installed_t is None or latest_t is None:
+            is_outdated = installed != latest
+        else:
+            is_outdated = latest_t > installed_t
+
+        # Classify the magnitude of the gap so Claude can prioritise.
+        gap = "none"
+        if installed_t and latest_t:
+            if latest_t[0] > installed_t[0]:
+                gap = "major"
+            elif latest_t[1] > installed_t[1]:
+                gap = "minor"
+            elif latest_t[2] > installed_t[2]:
+                gap = "patch"
+
+        return {
+            "name": name,
+            "installed": installed,
+            "latest": latest,
+            "outdated": is_outdated,
+            "gap": gap,
+        }
+
+    # Parallel fan-out — much faster than sequential for big lock files.
+    results = await asyncio.gather(
+        *(_check(name, v) for name, v in packages.items())
+    )
+
+    outdated   = [r for r in results if r.get("outdated")]
+    up_to_date = [r for r in results if r.get("outdated") is False]
+    errors     = [r for r in results if "error" in r]
+
+    return {
+        "checked": len(results),
+        "outdated_count":   len(outdated),
+        "up_to_date_count": len(up_to_date),
+        "error_count":      len(errors),
+        "outdated":   outdated,
+        "up_to_date": up_to_date,
+        "errors":     errors,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------

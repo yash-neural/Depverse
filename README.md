@@ -16,7 +16,7 @@ The server speaks the MCP `stdio` transport, so it plugs straight into Claude De
 
 ## Features
 
-Depverse exposes **23 tools** grouped into four categories.
+Depverse exposes **28 tools** grouped into five categories.
 
 ### Version tools
 | Tool | What it does |
@@ -56,6 +56,15 @@ Depverse exposes **23 tools** grouped into four categories.
 | `check_maintainer_activity` | Last publish date, publish count, average cadence, and a status label (`active` / `slowing` / `stale` / `abandoned`). |
 | `get_download_stats` | Weekly / monthly download counts from the public npm download API, plus a simple popularity tier. |
 | `check_typosquat_risk` | Flags names suspiciously close to popular packages via Levenshtein distance — catches common supply-chain typos. |
+
+### Compatibility & Update tools
+| Tool | What it does |
+| --- | --- |
+| `check_node_compatibility` | Returns the `engines` field (node / npm / yarn constraints) declared by a package version. |
+| `compare_versions` | Diffs two versions' `dependencies`, `devDependencies`, `peerDependencies`, and `engines` — reports added / removed / range-changed. |
+| `get_breaking_changes` | Scans a `from → to` version diff for direct or peer dependencies whose declared range crossed a **major** version boundary. |
+| `resolve_semver` | Resolves an npm range (`^18.0.0`, `~4.17.20`, `>=2 <3`, `1.x`, `*`) to the highest published version that satisfies it. |
+| `check_outdated` | Given `{package_name: installed_version}`, returns per-package `outdated` flag and gap level (`major` / `minor` / `patch`). Parallel fan-out. |
 
 All tools return JSON. Errors become `ValueError`s with a clear message (e.g. `"npm package 'foo' was not found."`), which MCP surfaces to the client as a tool error.
 
