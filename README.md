@@ -17,7 +17,7 @@ The server speaks MCP's `stdio` transport, so it plugs straight into Claude Code
 
 ## Features
 
-Depverse exposes **55 tools** grouped into nine categories.
+Depverse exposes **58 tools** grouped into ten categories.
 
 ### Version tools
 | Tool | What it does |
@@ -109,6 +109,13 @@ Depverse exposes **55 tools** grouped into nine categories.
 | `check_browser_compatible` | `yes` / `likely` / `unlikely` / `no` based on `browser` field, `exports.browser`, native `.node` files, and CLI `bin`. |
 | `check_deno_compatible` | `yes` / `likely` / `unknown` / `no` — looks at ESM/CJS, native modules, and JSR presence. |
 | `get_package_on_jsr` | Checks if a scoped package is also on [JSR](https://jsr.io) (the modern TypeScript-first registry used by Deno). |
+
+### Migration & Upgrade tools
+| Tool | What it does |
+| --- | --- |
+| `suggest_upgrade_path` | Walks from-version → to-version in **per-major hops**, recommending the highest stable release in each major line and calling `get_breaking_changes` for each hop. |
+| `find_replacement_package` | Detects deprecation and extracts the recommended replacement from the deprecation message (patterns: "use X instead", "moved to X", "see X"…). |
+| `check_migration_guide` | Fetches `MIGRATION.md` / `UPGRADING.md` / `UPGRADE.md` from the package's GitHub repo. Falls back to scanning repo contents for migration-related filenames. |
 
 All tools return JSON. Errors become `ValueError`s with a clear message (e.g. `"npm package 'foo' was not found."`), which MCP surfaces to the client as a tool error.
 

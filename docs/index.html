@@ -714,6 +714,7 @@
       <a href="#tools-utility" class="sub">Utility Tools</a>
       <a href="#tools-bundle" class="sub">Bundle Size Tools</a>
       <a href="#tools-module" class="sub">Module &amp; Compatibility Tools</a>
+      <a href="#tools-migration" class="sub">Migration &amp; Upgrade Tools</a>
       <a href="#tool-reference" class="sub">Full Reference</a>
     </div>
 
@@ -752,7 +753,7 @@
         <span class="badge accent">v0.1.0</span>
         <span class="badge">Python 3.10+</span>
         <span class="badge">MCP 1.8.0+</span>
-        <span class="badge">55 Tools</span>
+        <span class="badge">58 Tools</span>
       </div>
 
       <h1 class="hero-title">Depverse Documentation</h1>
@@ -764,7 +765,7 @@
 
       <div class="cta-row">
         <a class="btn primary" href="#installation">Install in 2 minutes →</a>
-        <a class="btn secondary" href="#tool-reference">Browse all 55 tools →</a>
+        <a class="btn secondary" href="#tool-reference">Browse all 58 tools →</a>
         <a class="btn secondary" href="https://github.com/yash-neural/Depverse" target="_blank" rel="noopener">View on GitHub</a>
       </div>
 
@@ -849,7 +850,7 @@
       <h3>Project layout</h3>
 <pre><span class="cmt"># repo root</span>
 Depverse/
-├── mcp_server.py       <span class="cmt"># The MCP server — all 55 tools</span>
+├── mcp_server.py       <span class="cmt"># The MCP server — all 58 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
 ├── pyproject.toml
@@ -925,7 +926,7 @@ uv pip install -e .</pre>
       <h2>Register with an MCP Client</h2>
       <p>
         Depverse is a <strong>standard MCP server</strong>. Any MCP-aware client can launch it over stdio and use its
-        55 tools. Pick your client below for a copy-paste config.
+        58 tools. Pick your client below for a copy-paste config.
       </p>
 
       <div class="callout info">
@@ -952,7 +953,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       <h4>Verify</h4>
 <pre><span class="cmt"># restart Claude Code, then:</span>
 /mcp
-<span class="cmt"># should list: Depverse → 55 tools</span></pre>
+<span class="cmt"># should list: Depverse → 58 tools</span></pre>
 
       <h4>Other Claude Code commands</h4>
       <div class="cards-grid">
@@ -1136,7 +1137,7 @@ python
     <!-- ========== TOOLS ========== -->
     <section class="doc-section" id="tools-version">
       <h2>Tools</h2>
-      <p>Depverse exposes <strong>55 tools</strong> in nine groups. All return JSON; errors surface as typed MCP tool errors.</p>
+      <p>Depverse exposes <strong>58 tools</strong> in ten groups. All return JSON; errors surface as typed MCP tool errors.</p>
 
       <h3 id="tools-version-h">Version tools <span style="color: var(--muted); font-weight: 400;">(6)</span></h3>
       <p>These answer <em>"which version?"</em> questions.</p>
@@ -1489,6 +1490,28 @@ python
       </div>
     </section>
 
+    <section class="doc-section" id="tools-migration">
+      <h3>Migration &amp; Upgrade tools <span style="color: var(--muted); font-weight: 400;">(3)</span></h3>
+      <p>These answer <em>"how do I move from v1 to v5 without breaking everything?"</em></p>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-name">suggest_upgrade_path</div>
+          <div class="card-title">Per-Major Hops</div>
+          <div class="card-desc">Walks your upgrade in <strong>per-major steps</strong> — recommends the highest stable release in each major line plus breaking-dep-bump counts per hop.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">find_replacement_package</div>
+          <div class="card-title">Deprecation Successor</div>
+          <div class="card-desc">Catches deprecated packages and extracts the suggested replacement from the deprecation message (<em>"use X instead"</em>, <em>"moved to Y"</em>).</div>
+        </div>
+        <div class="card">
+          <div class="card-name">check_migration_guide</div>
+          <div class="card-title">Official Migration Docs</div>
+          <div class="card-desc">Pulls <code>MIGRATION.md</code> / <code>UPGRADING.md</code> / <code>UPGRADE.md</code> from the repo, with a repo-contents scan as a fallback for non-canonical filenames.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- ========== FULL REFERENCE TABLE ========== -->
     <section class="doc-section" id="tool-reference">
       <h2>Full tool reference</h2>
@@ -1576,6 +1599,11 @@ python
           <tr><td><code>check_browser_compatible</code></td><td><code>package_name, version?</code></td><td>Manifest signals</td><td><code>{ browser_compatible, reason, browser_field }</code></td></tr>
           <tr><td><code>check_deno_compatible</code></td><td><code>package_name, version?</code></td><td>Manifest + JSR lookup</td><td><code>{ deno_compatible, has_esm, has_cjs, on_jsr }</code></td></tr>
           <tr><td><code>get_package_on_jsr</code></td><td><code>package_name</code></td><td><code>GET api.jsr.io/scopes/{scope}/packages/{pkg}</code></td><td><code>{ on_jsr, jsr_url, latest, runtimes }</code></td></tr>
+
+          <tr class="group-row"><td colspan="4">Migration &amp; Upgrade Tools</td></tr>
+          <tr><td><code>suggest_upgrade_path</code></td><td><code>package_name, from_version, to_version?</code></td><td><code>GET /{pkg}</code> + per-hop <code>get_breaking_changes</code></td><td><code>{ hop_count, hops[{major, recommended, breaking_dep_bumps}] }</code></td></tr>
+          <tr><td><code>find_replacement_package</code></td><td><code>package_name</code></td><td><code>GET /{pkg}</code> (manifest <code>deprecated</code>)</td><td><code>{ deprecated, replacement, message }</code></td></tr>
+          <tr><td><code>check_migration_guide</code></td><td><code>package_name</code></td><td>GitHub raw + contents API</td><td><code>{ path, content, truncated }</code> or <code>{ matches[] }</code></td></tr>
         </tbody>
       </table>
 

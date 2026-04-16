@@ -3544,6 +3544,310 @@ async def get_package_on_jsr(
     }
 
 
+# ===========================================================================
+# MIGRATION & UPGRADE TOOLS
+# ===========================================================================
+# Higher-level upgrade planning (complements get_breaking_changes and
+# compare_versions, which already cover the diff mechanics):
+#   suggest_upgrade_path   - walk v1 → v2 → v3 with per-hop breaking signals
+#   find_replacement_package - catch abandoned packages and point at the successor
+#   check_migration_guide  - fetch MIGRATION.md / UPGRADING.md from the repo
+
+
+# ---------------------------------------------------------------------------
+# TOOL 56: suggest_upgrade_path
+# ---------------------------------------------------------------------------
+# Given a from/to version, list the intermediate MAJOR versions the user
+# should step through. For each hop we surface a recommended target (the
+# highest minor/patch in that major line) plus breaking dep-bump counts, so
+# Claude can stage the upgrade in manageable chunks instead of jumping from
+# v1 straight to v5.
+@mcp.tool(
+    name="suggest_upgrade_path",
+    description=(
+        "Suggest a step-by-step upgrade path from one version to another, "
+        "stopping at each major-version boundary. Each stop includes the "
+        "recommended target version and a breaking-change snapshot."
+    ),
+)
+async def suggest_upgrade_path(
+    package_name: str = Field(description="Exact npm package name."),
+    from_version: str = Field(description="Currently-installed version."),
+    to_version: str = Field(
+        default="",
+        description="Target version. Leave empty to target the latest stable.",
+    ),
+) -> dict:
+    pkg = await _fetch_json(
+        f"{NPM_REGISTRY}/{package_name}",
+        not_found_msg=f"npm package '{package_name}' was not found.",
+    )
+    versions_map = pkg.get("versions", {}) or {}
+    all_versions = list(versions_map.keys())
+    if not all_versions:
+        raise ValueError(f"'{package_name}' has no published versions.")
+
+    # Default to "latest" dist-tag when no target was given.
+    target = to_version or pkg.get("dist-tags", {}).get("latest")
+    if not target:
+        raise ValueError("Could not resolve a target version.")
+
+    from_t = _parse_semver(from_version)
+    to_t   = _parse_semver(target)
+    if from_t is None or to_t is None:
+        raise ValueError(
+            f"Could not parse from={from_version} or to={target} as semver."
+        )
+    if from_t >= to_t:
+        return {
+            "package":   package_name,
+            "from":      from_version,
+            "to":        target,
+            "hops":      [],
+            "note":      "Target is not newer than the current version — nothing to do.",
+        }
+
+    # Pick the highest release in each major line between from_major+1 and
+    # to_major (inclusive). That's our stop list.
+    from_major, to_major = from_t[0], to_t[0]
+    majors_to_visit = list(range(from_major + 1, to_major + 1))
+
+    # Index every published version by major.
+    by_major: dict[int, list[tuple]] = {}
+    for v in all_versions:
+        parsed = _parse_semver(v)
+        if parsed is None:
+            continue
+        # Drop pre-releases from the upgrade path — we want stable stepping stones.
+        if "-" in v or "+" in v:
+            continue
+        by_major.setdefault(parsed[0], []).append(parsed)
+
+    hops: list[dict] = []
+    prev_version = from_version
+    for m in majors_to_visit:
+        candidates = by_major.get(m, [])
+        if not candidates:
+            hops.append({
+                "major":       m,
+                "recommended": None,
+                "note":        f"No stable v{m}.x releases found; skipping.",
+            })
+            continue
+        # Highest in this major line is almost always the right stop —
+        # upgrade bugs get patched in subsequent minor/patch releases.
+        top = max(candidates)
+        top_str = f"{top[0]}.{top[1]}.{top[2]}"
+
+        # Ask our existing get_breaking_changes tool for a per-hop summary.
+        try:
+            breaking = await get_breaking_changes(
+                package_name=package_name,
+                from_version=prev_version,
+                to_version=top_str,
+            )
+            bumps = breaking.get("total_major_bumps", 0)
+            likely_breaking = breaking.get("likely_breaking", False)
+            engine_change = breaking.get("node_engine_change")
+        except ValueError:
+            bumps = None
+            likely_breaking = None
+            engine_change = None
+
+        hops.append({
+            "major":       m,
+            "from":        prev_version,
+            "to":          top_str,
+            "recommended": top_str,
+            "breaking_dep_bumps": bumps,
+            "likely_breaking":    likely_breaking,
+            "node_engine_change": engine_change,
+        })
+        prev_version = top_str
+
+    return {
+        "package":   package_name,
+        "from":      from_version,
+        "to":        target,
+        "hop_count": len(hops),
+        "hops":      hops,
+        "note": (
+            "Walk each hop in order: install, run tests, fix, repeat. Jumping "
+            "straight from v1 to vN is rarely worth the pain."
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 57: find_replacement_package
+# ---------------------------------------------------------------------------
+# When a package is deprecated, npm stores a free-text message in the manifest.
+# That message almost always names the replacement — "use X instead", "moved to
+# @foo/bar", "see Y", etc. We pull the message and try to extract the named
+# successor with a small regex; if nothing matches we still surface the raw
+# message so Claude can reason about it.
+@mcp.tool(
+    name="find_replacement_package",
+    description=(
+        "Detect if an npm package has been deprecated and, if so, try to "
+        "extract the recommended replacement from the deprecation message."
+    ),
+)
+async def find_replacement_package(
+    package_name: str = Field(description="Exact npm package name."),
+) -> dict:
+    import re
+
+    pkg = await _fetch_json(
+        f"{NPM_REGISTRY}/{package_name}",
+        not_found_msg=f"npm package '{package_name}' was not found.",
+    )
+    latest_tag = pkg.get("dist-tags", {}).get("latest")
+    latest = pkg.get("versions", {}).get(latest_tag, {}) if latest_tag else {}
+    message = latest.get("deprecated") or pkg.get("deprecated") or ""
+
+    if not message:
+        return {
+            "package":     package_name,
+            "deprecated":  False,
+            "replacement": None,
+            "message":     "",
+        }
+
+    # Try a few common phrasings. Order matters — earlier patterns are more
+    # specific. Each pattern captures a plausible package name.
+    pkg_pat = r"([@a-zA-Z0-9][@a-zA-Z0-9._/\\-]{0,60}[a-zA-Z0-9])"
+    patterns = [
+        rf"\buse\s+{pkg_pat}\s+instead\b",
+        rf"\bplease\s+use\s+{pkg_pat}\b",
+        rf"\bmoved\s+to\s+{pkg_pat}\b",
+        rf"\brenamed\s+to\s+{pkg_pat}\b",
+        rf"\breplaced\s+by\s+{pkg_pat}\b",
+        rf"\bsee\s+{pkg_pat}\b",
+        rf"\bswitch\s+to\s+{pkg_pat}\b",
+        rf"\bupgrade\s+to\s+{pkg_pat}\b",
+    ]
+    replacement = None
+    for pat in patterns:
+        match = re.search(pat, message, flags=re.IGNORECASE)
+        if match:
+            candidate = match.group(1).strip(".,;:!?\"'()[]")
+            # Filter obvious noise — version numbers, URLs.
+            if candidate.lower() in {"it", "this", "npm", "node"}:
+                continue
+            if candidate.startswith("http"):
+                continue
+            replacement = candidate
+            break
+
+    return {
+        "package":     package_name,
+        "deprecated":  True,
+        "replacement": replacement,
+        "message":     message,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 58: check_migration_guide
+# ---------------------------------------------------------------------------
+# Big open-source projects ship migration docs under predictable filenames —
+# MIGRATION.md, MIGRATING.md, UPGRADE.md, UPGRADING.md, UPGRADE_GUIDE.md. We
+# walk the list against main / master / HEAD and return whichever one we find
+# first. Falls back to a GitHub search on the repo if nothing exists at those
+# canonical paths.
+@mcp.tool(
+    name="check_migration_guide",
+    description=(
+        "Fetch the official migration guide for an npm package from its "
+        "GitHub repo — tries MIGRATION.md, UPGRADING.md, UPGRADE.md, etc. "
+        "Falls back to searching the repo when no canonical file exists."
+    ),
+)
+async def check_migration_guide(
+    package_name: str = Field(description="Exact npm package name."),
+) -> dict:
+    pkg = await _fetch_json(
+        f"{NPM_REGISTRY}/{package_name}",
+        not_found_msg=f"npm package '{package_name}' was not found.",
+    )
+    slug = _parse_github_slug(pkg.get("repository"))
+    if not slug:
+        raise ValueError(
+            f"'{package_name}' does not declare a GitHub repository."
+        )
+
+    # Canonical filenames, in priority order.
+    candidates = [
+        "MIGRATION.md", "MIGRATING.md",
+        "UPGRADE.md", "UPGRADING.md", "UPGRADE_GUIDE.md",
+        "docs/migration.md", "docs/upgrading.md", "docs/upgrade.md",
+    ]
+    branches = ["main", "master", "HEAD"]
+
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        for branch in branches:
+            for path in candidates:
+                url = f"https://raw.githubusercontent.com/{slug}/{branch}/{path}"
+                try:
+                    r = await client.get(url)
+                except httpx.RequestError:
+                    continue
+                if r.status_code == 200 and r.text:
+                    content = r.text
+                    return {
+                        "package":   package_name,
+                        "repo":      slug,
+                        "branch":    branch,
+                        "path":      path,
+                        "url":       url,
+                        "truncated": len(content) > 20_000,
+                        "content":   content[:20_000],
+                    }
+
+    # Fallback: list the repo contents at root + docs/ and grep for likely
+    # migration filenames. GitHub's contents API is unauthenticated-friendly
+    # (60 req/h per IP) and returns structured JSON we can filter.
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        matches: list[dict] = []
+        for dir_path in ("", "docs"):
+            url = f"https://api.github.com/repos/{slug}/contents/{dir_path}".rstrip("/")
+            try:
+                r = await client.get(url)
+            except httpx.RequestError:
+                continue
+            if r.status_code != 200:
+                continue
+            try:
+                entries = r.json()
+            except ValueError:
+                # Non-JSON (rate-limit HTML, empty body) — skip cleanly.
+                continue
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                name = (entry.get("name") or "").lower()
+                if any(kw in name for kw in ("migrat", "upgrad", "breaking", "changelog-")):
+                    matches.append({
+                        "path": entry.get("path"),
+                        "url":  entry.get("html_url"),
+                    })
+
+        if matches:
+            return {
+                "package": package_name,
+                "repo":    slug,
+                "content": None,
+                "note":    "No canonical migration file found; here are the closest matches by filename.",
+                "matches": matches[:8],
+            }
+
+    raise ValueError(
+        f"No migration guide found in {slug} — checked canonical filenames "
+        f"and scanned the repo root + docs/ for migration-related names."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------
