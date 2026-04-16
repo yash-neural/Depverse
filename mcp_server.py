@@ -3094,6 +3094,456 @@ async def get_patched_version(
     }
 
 
+# ===========================================================================
+# MODULE & COMPATIBILITY TOOLS
+# ===========================================================================
+# Answers "what module systems / runtimes does this package support?":
+#   check_esm_support        - ES modules (import X from 'pkg')
+#   check_cjs_support        - CommonJS (require('pkg'))
+#   check_typescript_support - has built-in .d.ts or a DefinitelyTyped package
+#   get_exports_map          - the "exports" field from package.json
+#   check_browser_compatible - safe to bundle for the browser?
+#   check_deno_compatible    - runs under Deno?
+#   get_package_on_jsr       - also published on the JSR registry?
+
+
+def _manifest_has_esm(manifest: dict) -> tuple[bool, list[str]]:
+    """Return (has_esm, reasons). Checks the many signals npm uses for ESM."""
+    reasons = []
+    has = False
+    # Modern: "exports" with an "import" condition (or "module" condition).
+    exp = manifest.get("exports")
+    if isinstance(exp, dict):
+        def _walk(obj):
+            nonlocal has
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k in ("import", "module", "default"):
+                        if isinstance(v, str) and v:
+                            has = True
+                    _walk(v)
+        _walk(exp)
+        if has:
+            reasons.append("exports field declares an 'import' condition")
+    # Legacy but still common: top-level "module" field → ESM entry point.
+    if manifest.get("module"):
+        has = True
+        reasons.append('has a "module" field pointing to an ESM build')
+    # "type": "module" treats all .js files as ESM.
+    if manifest.get("type") == "module":
+        has = True
+        reasons.append('"type": "module" in package.json')
+    return has, reasons
+
+
+def _manifest_has_cjs(manifest: dict) -> tuple[bool, list[str]]:
+    """Return (has_cjs, reasons) for CommonJS support."""
+    reasons = []
+    has = False
+    exp = manifest.get("exports")
+    if isinstance(exp, dict):
+        def _walk(obj):
+            nonlocal has
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k in ("require", "default"):
+                        if isinstance(v, str) and v:
+                            has = True
+                    _walk(v)
+        _walk(exp)
+        if has:
+            reasons.append("exports field declares a 'require' condition")
+    # "main" is the classic CJS entry point.
+    if manifest.get("main"):
+        # Unless "type": "module" and main has .js — then main is ESM too.
+        if manifest.get("type") != "module":
+            has = True
+            reasons.append('has a "main" field (classic CommonJS entry)')
+    # If there's no exports map, no type=module, and no module field but there
+    # ARE files, npm treats them as CJS by default.
+    if not exp and not manifest.get("module") and manifest.get("type") != "module":
+        if manifest.get("main") or manifest.get("files"):
+            if not has:
+                has = True
+                reasons.append("no ESM markers — defaults to CommonJS")
+    return has, reasons
+
+
+# ---------------------------------------------------------------------------
+# TOOL 49: check_esm_support
+# ---------------------------------------------------------------------------
+@mcp.tool(
+    name="check_esm_support",
+    description=(
+        "Check whether an npm package supports ES Modules. Looks at exports "
+        "conditions, the 'module' field, and 'type: module' — all the modern "
+        "signals npm uses to declare ESM."
+    ),
+)
+async def check_esm_support(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_manifest(package_name, version)
+    has, reasons = _manifest_has_esm(data)
+    return {
+        "package": data.get("name"),
+        "version": data.get("version"),
+        "esm":     has,
+        "reasons": reasons or ["No ESM declarations found."],
+        "type":    data.get("type", "commonjs"),
+        "module":  data.get("module", ""),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 50: check_cjs_support
+# ---------------------------------------------------------------------------
+@mcp.tool(
+    name="check_cjs_support",
+    description=(
+        "Check whether an npm package supports CommonJS. Looks at 'main', "
+        "exports 'require' conditions, and the absence of 'type: module'."
+    ),
+)
+async def check_cjs_support(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_manifest(package_name, version)
+    has, reasons = _manifest_has_cjs(data)
+    return {
+        "package": data.get("name"),
+        "version": data.get("version"),
+        "cjs":     has,
+        "reasons": reasons or ["No CommonJS entry points found."],
+        "main":    data.get("main", ""),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 51: check_typescript_support
+# ---------------------------------------------------------------------------
+# TypeScript support can be signalled two ways:
+#   1. Built-in: package declares "types" or "typings" in its manifest, OR
+#      ships .d.ts files with the package.
+#   2. DefinitelyTyped: a separate @types/<name> package exists on npm.
+# We check both and report which (or none).
+@mcp.tool(
+    name="check_typescript_support",
+    description=(
+        "Check if an npm package has TypeScript support: either built-in "
+        "types (via 'types'/'typings'/exports .d.ts) or a DefinitelyTyped "
+        "companion package (@types/<name>)."
+    ),
+)
+async def check_typescript_support(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_manifest(package_name, version)
+
+    types_field  = data.get("types") or data.get("typings") or ""
+    exports_field = data.get("exports")
+    exports_has_types = False
+    if isinstance(exports_field, dict):
+        def _walk(o):
+            nonlocal exports_has_types
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    if k == "types":
+                        exports_has_types = True
+                    _walk(v)
+        _walk(exports_field)
+
+    built_in = bool(types_field) or exports_has_types
+
+    # Derive the @types/<name> slug — scoped packages use double-underscore:
+    # @babel/core -> @types/babel__core.
+    raw = package_name
+    if raw.startswith("@"):
+        scope, name = raw[1:].split("/", 1)
+        dt_name = f"@types/{scope}__{name}"
+    else:
+        dt_name = f"@types/{raw}"
+
+    # Look up the DT package — may or may not exist.
+    dt_version = None
+    try:
+        dt = await _fetch_json(
+            f"{NPM_REGISTRY}/{dt_name}/latest",
+            not_found_msg="__no_dt__",
+        )
+        dt_version = dt.get("version")
+    except ValueError:
+        pass
+
+    if built_in:
+        summary = "built-in types"
+    elif dt_version:
+        summary = "DefinitelyTyped package available"
+    else:
+        summary = "no TypeScript support detected"
+
+    return {
+        "package":          data.get("name", package_name),
+        "version":          data.get("version"),
+        "built_in_types":   built_in,
+        "types_field":      types_field,
+        "exports_types":    exports_has_types,
+        "definitelytyped":  dt_version is not None,
+        "definitelytyped_package": dt_name if dt_version else None,
+        "definitelytyped_version": dt_version,
+        "summary":          summary,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 52: get_exports_map
+# ---------------------------------------------------------------------------
+# Returns the raw "exports" field plus a flattened list of entry points for
+# quick inspection. The modern "exports" field gates what consumers can import
+# from a package — important for deep-import debugging.
+@mcp.tool(
+    name="get_exports_map",
+    description=(
+        "Return the 'exports' field of an npm package's manifest plus a "
+        "flattened list of entry-point subpaths (e.g. '.', './router')."
+    ),
+)
+async def get_exports_map(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_manifest(package_name, version)
+    exports_field = data.get("exports")
+
+    # Flatten subpaths for quick skimming. The exports field can be:
+    #   - a single string (main entry)
+    #   - a dict of subpaths -> (string | conditions dict)
+    subpaths: list[str] = []
+    if isinstance(exports_field, str):
+        subpaths = ["."]
+    elif isinstance(exports_field, dict):
+        # Subpaths always start with "."
+        subpaths = [k for k in exports_field.keys() if k.startswith(".")]
+
+    return {
+        "package":        data.get("name", package_name),
+        "version":        data.get("version"),
+        "exports":        exports_field,   # raw field for full inspection
+        "subpaths":       subpaths,
+        "subpath_count":  len(subpaths),
+        "main":           data.get("main", ""),
+        "module":         data.get("module", ""),
+        "has_exports_map": exports_field is not None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 53: check_browser_compatible
+# ---------------------------------------------------------------------------
+# Signals used:
+#   - "browser" field in package.json (strongest positive signal)
+#   - "exports" with a "browser" condition
+#   - "engines" declaring only Node (weak negative)
+#   - "main" ending in ".node" or references to native bindings (strong negative)
+@mcp.tool(
+    name="check_browser_compatible",
+    description=(
+        "Check if an npm package is meant to run in the browser. Uses "
+        "'browser' field, 'exports' conditions, and engine constraints "
+        "to derive a yes / likely / unlikely / no verdict."
+    ),
+)
+async def check_browser_compatible(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_manifest(package_name, version)
+
+    browser_field = data.get("browser")
+    has_browser_field = browser_field is not None and browser_field != {}
+
+    exports_field = data.get("exports")
+    exports_has_browser = False
+    if isinstance(exports_field, dict):
+        def _walk(o):
+            nonlocal exports_has_browser
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    if k == "browser":
+                        exports_has_browser = True
+                    _walk(v)
+        _walk(exports_field)
+
+    # Strong negative signals.
+    main = (data.get("main") or "").lower()
+    bin_ = data.get("bin")
+    uses_native = main.endswith(".node")
+    has_bin = bool(bin_)
+
+    # Engine constraints only reference Node — doesn't prove browser-hostile
+    # but it's a weak hint that the authors primarily targeted Node.
+    engines = data.get("engines", {}) or {}
+    node_only_engines = bool(engines.get("node")) and not has_browser_field
+
+    # Derive verdict.
+    if uses_native:
+        verdict = "no"
+        reason = "Ships a native .node binary — browser cannot load it."
+    elif has_browser_field or exports_has_browser:
+        verdict = "yes"
+        reason = "Declares a 'browser' field or 'browser' export condition."
+    elif has_bin and not has_browser_field:
+        verdict = "unlikely"
+        reason = "Has a CLI ('bin' field) and no browser build."
+    elif node_only_engines:
+        verdict = "likely"
+        reason = "No explicit browser field — may still work but not guaranteed."
+    else:
+        verdict = "likely"
+        reason = "Pure-JS package with no Node-only markers — usually bundlable."
+
+    return {
+        "package":          data.get("name", package_name),
+        "version":          data.get("version"),
+        "browser_compatible": verdict,
+        "reason":           reason,
+        "browser_field":    browser_field,
+        "exports_browser":  exports_has_browser,
+        "has_native":       uses_native,
+        "has_bin":          has_bin,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 54: check_deno_compatible
+# ---------------------------------------------------------------------------
+# Deno can import any ESM package from npm via "npm:" specifiers since v1.28.
+# It can import CJS too but with caveats. The clearest signals:
+#   - ESM-only or dual ESM/CJS → works well
+#   - Pure CJS with no ESM build → works but with interop quirks
+#   - Native modules (.node files) → doesn't work
+#   - Published on JSR → first-class Deno support
+@mcp.tool(
+    name="check_deno_compatible",
+    description=(
+        "Check if an npm package is compatible with Deno. Looks at ESM/CJS "
+        "support, native modules, and JSR presence."
+    ),
+)
+async def check_deno_compatible(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_manifest(package_name, version)
+    has_esm, _   = _manifest_has_esm(data)
+    has_cjs, _   = _manifest_has_cjs(data)
+    main = (data.get("main") or "").lower()
+    uses_native = main.endswith(".node")
+
+    # JSR presence — first-class Deno support.
+    jsr = await _check_jsr(package_name)
+    on_jsr = jsr.get("on_jsr", False)
+
+    if uses_native:
+        verdict = "no"
+        reason = "Ships a native .node binary — Deno cannot load it."
+    elif on_jsr:
+        verdict = "yes"
+        reason = "Published on JSR — first-class Deno support."
+    elif has_esm:
+        verdict = "yes"
+        reason = "ESM build — Deno imports npm ESM packages natively."
+    elif has_cjs:
+        verdict = "likely"
+        reason = "CJS-only — Deno supports via npm: specifiers but with interop caveats."
+    else:
+        verdict = "unknown"
+        reason = "Could not determine module format."
+
+    return {
+        "package":         data.get("name", package_name),
+        "version":         data.get("version"),
+        "deno_compatible": verdict,
+        "reason":          reason,
+        "has_esm":         has_esm,
+        "has_cjs":         has_cjs,
+        "has_native":      uses_native,
+        "on_jsr":          on_jsr,
+    }
+
+
+# ---------------------------------------------------------------------------
+# JSR helper — shared by check_deno_compatible and get_package_on_jsr.
+# ---------------------------------------------------------------------------
+# JSR packages are always scoped (@scope/name). For unscoped npm packages
+# we still attempt a lookup using @scope/name if the user passes one, but
+# otherwise we report "not on JSR".
+async def _check_jsr(package_name: str) -> dict:
+    if not package_name.startswith("@") or "/" not in package_name:
+        return {"on_jsr": False, "note": "JSR packages are always scoped (@scope/name)."}
+    scope, name = package_name[1:].split("/", 1)
+    url = f"https://api.jsr.io/scopes/{scope}/packages/{name}"
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get(url)
+    except httpx.RequestError as exc:
+        return {"on_jsr": False, "error": str(exc)}
+    if response.status_code == 404:
+        return {"on_jsr": False}
+    if response.status_code >= 400:
+        return {"on_jsr": False, "error": f"HTTP {response.status_code}"}
+    data = response.json()
+    return {
+        "on_jsr":      True,
+        "jsr_url":     f"https://jsr.io/@{scope}/{name}",
+        "description": data.get("description", ""),
+        "latest":      data.get("latestVersion"),
+        "runtimes":    data.get("runtimeCompat", {}),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 55: get_package_on_jsr
+# ---------------------------------------------------------------------------
+@mcp.tool(
+    name="get_package_on_jsr",
+    description=(
+        "Check whether a package is also published on the JSR registry "
+        "(jsr.io). JSR is the modern registry favoured by Deno and Bun."
+    ),
+)
+async def get_package_on_jsr(
+    package_name: str = Field(
+        description="Package name, e.g. '@std/path' or '@luca/cases'."
+    ),
+) -> dict:
+    return {
+        "package": package_name,
+        **(await _check_jsr(package_name)),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------

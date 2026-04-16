@@ -17,7 +17,7 @@ The server speaks MCP's `stdio` transport, so it plugs straight into Claude Code
 
 ## Features
 
-Depverse exposes **48 tools** grouped into eight categories.
+Depverse exposes **55 tools** grouped into nine categories.
 
 ### Version tools
 | Tool | What it does |
@@ -98,6 +98,17 @@ Depverse exposes **48 tools** grouped into eight categories.
 | `check_treeshakeable` | Returns `true` when the package ships ES modules AND declares `"sideEffects": false` — the two conditions needed for bundler tree-shaking. |
 | `compare_bundle_sizes` | Parallel size lookup for 2–10 packages. Ranks by gzipped size (lightest first). |
 | `get_bundle_size_impact` | Framed for PR-review: "adding X will add Y KB gzipped with Z transitive deps" — plus an `impact` tier (tiny / small / moderate / heavy). |
+
+### Module & Compatibility tools
+| Tool | What it does |
+| --- | --- |
+| `check_esm_support` | Does the package ship ES modules? Reads `exports.import`, `module` field, `type: "module"`. |
+| `check_cjs_support` | Does it support CommonJS? Reads `main`, `exports.require`, and the default rules when no ESM markers exist. |
+| `check_typescript_support` | Built-in types (`types`/`typings`/exports `.d.ts`) or a `@types/<name>` DefinitelyTyped package — reports which, or neither. |
+| `get_exports_map` | Returns the raw `exports` field plus a flat list of subpaths (e.g. `.`, `./router`). |
+| `check_browser_compatible` | `yes` / `likely` / `unlikely` / `no` based on `browser` field, `exports.browser`, native `.node` files, and CLI `bin`. |
+| `check_deno_compatible` | `yes` / `likely` / `unknown` / `no` — looks at ESM/CJS, native modules, and JSR presence. |
+| `get_package_on_jsr` | Checks if a scoped package is also on [JSR](https://jsr.io) (the modern TypeScript-first registry used by Deno). |
 
 All tools return JSON. Errors become `ValueError`s with a clear message (e.g. `"npm package 'foo' was not found."`), which MCP surfaces to the client as a tool error.
 

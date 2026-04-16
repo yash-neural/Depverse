@@ -713,6 +713,7 @@
       <a href="#tools-search" class="sub">Search &amp; Discovery Tools</a>
       <a href="#tools-utility" class="sub">Utility Tools</a>
       <a href="#tools-bundle" class="sub">Bundle Size Tools</a>
+      <a href="#tools-module" class="sub">Module &amp; Compatibility Tools</a>
       <a href="#tool-reference" class="sub">Full Reference</a>
     </div>
 
@@ -751,7 +752,7 @@
         <span class="badge accent">v0.1.0</span>
         <span class="badge">Python 3.10+</span>
         <span class="badge">MCP 1.8.0+</span>
-        <span class="badge">48 Tools</span>
+        <span class="badge">55 Tools</span>
       </div>
 
       <h1 class="hero-title">Depverse Documentation</h1>
@@ -763,7 +764,7 @@
 
       <div class="cta-row">
         <a class="btn primary" href="#installation">Install in 2 minutes →</a>
-        <a class="btn secondary" href="#tool-reference">Browse all 48 tools →</a>
+        <a class="btn secondary" href="#tool-reference">Browse all 55 tools →</a>
         <a class="btn secondary" href="https://github.com/yash-neural/Depverse" target="_blank" rel="noopener">View on GitHub</a>
       </div>
 
@@ -848,7 +849,7 @@
       <h3>Project layout</h3>
 <pre><span class="cmt"># repo root</span>
 Depverse/
-├── mcp_server.py       <span class="cmt"># The MCP server — all 48 tools</span>
+├── mcp_server.py       <span class="cmt"># The MCP server — all 55 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
 ├── pyproject.toml
@@ -924,7 +925,7 @@ uv pip install -e .</pre>
       <h2>Register with an MCP Client</h2>
       <p>
         Depverse is a <strong>standard MCP server</strong>. Any MCP-aware client can launch it over stdio and use its
-        48 tools. Pick your client below for a copy-paste config.
+        55 tools. Pick your client below for a copy-paste config.
       </p>
 
       <div class="callout info">
@@ -951,7 +952,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       <h4>Verify</h4>
 <pre><span class="cmt"># restart Claude Code, then:</span>
 /mcp
-<span class="cmt"># should list: Depverse → 48 tools</span></pre>
+<span class="cmt"># should list: Depverse → 55 tools</span></pre>
 
       <h4>Other Claude Code commands</h4>
       <div class="cards-grid">
@@ -1135,7 +1136,7 @@ python
     <!-- ========== TOOLS ========== -->
     <section class="doc-section" id="tools-version">
       <h2>Tools</h2>
-      <p>Depverse exposes <strong>48 tools</strong> in eight groups. All return JSON; errors surface as typed MCP tool errors.</p>
+      <p>Depverse exposes <strong>55 tools</strong> in nine groups. All return JSON; errors surface as typed MCP tool errors.</p>
 
       <h3 id="tools-version-h">Version tools <span style="color: var(--muted); font-weight: 400;">(6)</span></h3>
       <p>These answer <em>"which version?"</em> questions.</p>
@@ -1446,6 +1447,48 @@ python
       </div>
     </section>
 
+    <section class="doc-section" id="tools-module">
+      <h3>Module &amp; Compatibility tools <span style="color: var(--muted); font-weight: 400;">(7)</span></h3>
+      <p>These answer <em>"what module systems and runtimes does this support?"</em></p>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-name">check_esm_support</div>
+          <div class="card-title">ES Modules</div>
+          <div class="card-desc">Does the package ship ESM? Reads <code>exports.import</code>, <code>module</code>, and <code>type: "module"</code>.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">check_cjs_support</div>
+          <div class="card-title">CommonJS</div>
+          <div class="card-desc">Does it support <code>require()</code>? Reads <code>main</code>, <code>exports.require</code>, and the default rules.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">check_typescript_support</div>
+          <div class="card-title">TypeScript Types</div>
+          <div class="card-desc">Built-in types? Or a DefinitelyTyped (<code>@types/*</code>) companion package? Reports which, or neither.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_exports_map</div>
+          <div class="card-title">Entry-point Map</div>
+          <div class="card-desc">Raw <code>exports</code> field + a flat list of subpaths (e.g. <code>.</code>, <code>./router</code>) — useful for deep-import debugging.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">check_browser_compatible</div>
+          <div class="card-title">Browser-safe?</div>
+          <div class="card-desc"><code>yes</code> / <code>likely</code> / <code>unlikely</code> / <code>no</code> — based on <code>browser</code> field, native <code>.node</code> files, and CLI <code>bin</code>.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">check_deno_compatible</div>
+          <div class="card-title">Deno-safe?</div>
+          <div class="card-desc">Checks ESM/CJS, native modules, and JSR presence. Returns a compatibility verdict with reasoning.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_package_on_jsr</div>
+          <div class="card-title">JSR Lookup</div>
+          <div class="card-desc">Is this package also on <a href="https://jsr.io" target="_blank" rel="noopener">JSR</a>? Returns the JSR URL, description, and supported runtimes.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- ========== FULL REFERENCE TABLE ========== -->
     <section class="doc-section" id="tool-reference">
       <h2>Full tool reference</h2>
@@ -1524,6 +1567,15 @@ python
           <tr><td><code>check_treeshakeable</code></td><td><code>package_name, version?</code></td><td><code>GET bundlephobia.com/api/size</code></td><td><code>{ treeshakeable, has_esm, side_effects_declared_none, reason }</code></td></tr>
           <tr><td><code>compare_bundle_sizes</code></td><td><code>packages[]</code></td><td>Parallel bundlephobia fetches</td><td><code>{ lightest, ranking[] }</code></td></tr>
           <tr><td><code>get_bundle_size_impact</code></td><td><code>package_name, version?</code></td><td><code>GET bundlephobia.com/api/size</code></td><td><code>{ impact, summary, size_bytes, gzip_bytes }</code></td></tr>
+
+          <tr class="group-row"><td colspan="4">Module &amp; Compatibility Tools</td></tr>
+          <tr><td><code>check_esm_support</code></td><td><code>package_name, version?</code></td><td>Manifest (exports, module, type)</td><td><code>{ esm, reasons[], type, module }</code></td></tr>
+          <tr><td><code>check_cjs_support</code></td><td><code>package_name, version?</code></td><td>Manifest (main, exports.require)</td><td><code>{ cjs, reasons[], main }</code></td></tr>
+          <tr><td><code>check_typescript_support</code></td><td><code>package_name, version?</code></td><td>Manifest + <code>/{'@types/'}pkg/latest</code></td><td><code>{ summary, built_in_types, definitelytyped }</code></td></tr>
+          <tr><td><code>get_exports_map</code></td><td><code>package_name, version?</code></td><td>Manifest</td><td><code>{ exports, subpaths[], has_exports_map }</code></td></tr>
+          <tr><td><code>check_browser_compatible</code></td><td><code>package_name, version?</code></td><td>Manifest signals</td><td><code>{ browser_compatible, reason, browser_field }</code></td></tr>
+          <tr><td><code>check_deno_compatible</code></td><td><code>package_name, version?</code></td><td>Manifest + JSR lookup</td><td><code>{ deno_compatible, has_esm, has_cjs, on_jsr }</code></td></tr>
+          <tr><td><code>get_package_on_jsr</code></td><td><code>package_name</code></td><td><code>GET api.jsr.io/scopes/{scope}/packages/{pkg}</code></td><td><code>{ on_jsr, jsr_url, latest, runtimes }</code></td></tr>
         </tbody>
       </table>
 
