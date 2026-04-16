@@ -2768,6 +2768,332 @@ async def get_bundle_size_impact(
     }
 
 
+# ===========================================================================
+# ADVANCED SECURITY TOOLS (extends Security & Health)
+# ===========================================================================
+# Deeper OSV-backed tools for vulnerability research:
+#   get_vulnerability_details - look up a specific CVE/GHSA by ID
+#   audit_all_dependencies    - scan a whole package.json for vulns
+#   check_supply_chain_risk   - flag vulnerable direct + transitive deps
+#   get_patched_version       - which version fixed a given advisory?
+
+
+OSV_API = "https://api.osv.dev/v1"
+
+
+# ---------------------------------------------------------------------------
+# TOOL 45: get_vulnerability_details
+# ---------------------------------------------------------------------------
+# Given a CVE / GHSA / OSV ID, fetch the full advisory record. We trim the
+# response so callers get the useful fields (summary, severity, affected
+# versions, patched versions) without parsing the enormous raw OSV schema.
+@mcp.tool(
+    name="get_vulnerability_details",
+    description=(
+        "Fetch full details for a specific vulnerability by ID (e.g. "
+        "'GHSA-29mw-wpgm-hmr9', 'CVE-2024-1234'). Returns summary, severity, "
+        "affected versions, and patched versions."
+    ),
+)
+async def get_vulnerability_details(
+    vuln_id: str = Field(
+        description="The advisory ID — GHSA, CVE, OSV, RUSTSEC, etc."
+    ),
+) -> dict:
+    url = f"{OSV_API}/vulns/{vuln_id}"
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get(url)
+    except httpx.RequestError as exc:
+        raise ValueError(f"Could not reach OSV.dev: {exc}") from exc
+
+    if response.status_code == 404:
+        raise ValueError(f"Vulnerability '{vuln_id}' not found in OSV.")
+    if response.status_code >= 400:
+        raise ValueError(
+            f"OSV returned HTTP {response.status_code} for '{vuln_id}'."
+        )
+
+    data = response.json()
+
+    # Flatten "affected" into a simpler per-package summary.
+    affected_summary = []
+    for aff in data.get("affected", []) or []:
+        pkg = aff.get("package", {}) or {}
+        if pkg.get("ecosystem") != "npm":
+            continue
+        ranges_info = []
+        fixed_versions = []
+        for r in aff.get("ranges", []) or []:
+            events = r.get("events", []) or []
+            introduced = next(
+                (e.get("introduced") for e in events if "introduced" in e),
+                None,
+            )
+            fixed = next(
+                (e.get("fixed") for e in events if "fixed" in e),
+                None,
+            )
+            ranges_info.append({"introduced": introduced, "fixed": fixed})
+            if fixed:
+                fixed_versions.append(fixed)
+        affected_summary.append({
+            "package": pkg.get("name"),
+            "ranges":  ranges_info,
+            "fixed_versions": fixed_versions,
+        })
+
+    severity = data.get("severity", []) or []
+    severity_summary = [
+        {"type": s.get("type"), "score": s.get("score")}
+        for s in severity
+    ]
+
+    return {
+        "id":            data.get("id"),
+        "aliases":       data.get("aliases", []),
+        "summary":       data.get("summary", ""),
+        "details":       data.get("details", "")[:2000],   # can be long
+        "published":     data.get("published"),
+        "modified":      data.get("modified"),
+        "severity":      severity_summary,
+        "affected_npm":  affected_summary,
+        "references":   [r.get("url") for r in data.get("references", []) or []][:10],
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 46: audit_all_dependencies
+# ---------------------------------------------------------------------------
+# Supply-chain scan of a whole package.json. We use OSV's /querybatch endpoint
+# — one HTTP call that reports vulns across N packages at once. Much faster
+# than a per-package loop for a typical lock file with dozens of deps.
+@mcp.tool(
+    name="audit_all_dependencies",
+    description=(
+        "Audit a package.json (or a {name: version} map) for known "
+        "vulnerabilities. Uses OSV's batch endpoint — one HTTP call for "
+        "the whole dependency set."
+    ),
+)
+async def audit_all_dependencies(
+    package_json: dict = Field(
+        default_factory=dict,
+        description="Full package.json object. Its dependencies/devDependencies/peerDependencies will be audited.",
+    ),
+    dependencies: dict[str, str] = Field(
+        default_factory=dict,
+        description="Alternative: a bare {name: version} map to audit directly.",
+    ),
+    include_dev: bool = Field(
+        default=False,
+        description="If True, also include devDependencies in the audit.",
+    ),
+) -> dict:
+    # Build the merged dependency map to audit.
+    to_audit: dict[str, str] = {}
+    to_audit.update(package_json.get("dependencies", {}) or {})
+    to_audit.update(package_json.get("peerDependencies", {}) or {})
+    if include_dev:
+        to_audit.update(package_json.get("devDependencies", {}) or {})
+    if dependencies:
+        to_audit.update(dependencies)
+
+    if not to_audit:
+        return {
+            "checked": 0,
+            "vulnerable_count": 0,
+            "packages": [],
+            "note": "No dependencies provided to audit.",
+        }
+
+    # Resolve each range to a concrete version first. OSV needs a specific
+    # version to check, not a range. We reuse resolve_semver's logic inline.
+    async def _resolve(name: str, range_: str) -> str | None:
+        # Simple ranges: strip common prefix and treat the rest as a version.
+        stripped = range_.lstrip("^~>=< ").split(" ")[0].strip()
+        if not stripped or stripped in ("*", "latest"):
+            # Fetch latest when range is wildcard-ish.
+            try:
+                data = await _fetch_json(
+                    f"{NPM_REGISTRY}/{name}/latest",
+                    not_found_msg=f"'{name}' not found.",
+                )
+                return data.get("version")
+            except ValueError:
+                return None
+        # If the "version" is itself a valid version, use it directly.
+        if _parse_semver(stripped) is not None:
+            return stripped
+        return None
+
+    # Resolve everything in parallel.
+    names = list(to_audit.keys())
+    ranges = [to_audit[n] for n in names]
+    resolved = await asyncio.gather(
+        *(_resolve(n, r) for n, r in zip(names, ranges))
+    )
+
+    # Build the OSV batch query — one entry per (name, version) pair that
+    # resolved successfully. Unresolved packages are reported as errors.
+    queries = []
+    query_to_name: list[str] = []
+    unresolved: list[dict] = []
+    for name, range_, ver in zip(names, ranges, resolved):
+        if ver is None:
+            unresolved.append({
+                "package": name, "range": range_,
+                "error": "Could not resolve range to a concrete version.",
+            })
+            continue
+        queries.append({
+            "package": {"name": name, "ecosystem": "npm"},
+            "version": ver,
+        })
+        query_to_name.append(name)
+
+    vulnerable: list[dict] = []
+    if queries:
+        # OSV's batch endpoint: POST /v1/querybatch with {"queries": [...]}.
+        try:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT * 2) as client:
+                response = await client.post(
+                    f"{OSV_API}/querybatch",
+                    json={"queries": queries},
+                )
+        except httpx.RequestError as exc:
+            raise ValueError(f"Could not reach OSV.dev: {exc}") from exc
+
+        if response.status_code >= 400:
+            raise ValueError(
+                f"OSV batch API returned HTTP {response.status_code}."
+            )
+
+        results = response.json().get("results", []) or []
+        for name, q, r in zip(query_to_name, queries, results):
+            vulns = r.get("vulns", []) or []
+            if not vulns:
+                continue
+            vulnerable.append({
+                "package":    name,
+                "version":    q["version"],
+                "vuln_count": len(vulns),
+                "vuln_ids":   [v.get("id") for v in vulns][:10],
+            })
+
+    return {
+        "checked":          len(queries),
+        "vulnerable_count": len(vulnerable),
+        "safe_count":       len(queries) - len(vulnerable),
+        "unresolved_count": len(unresolved),
+        "packages":         vulnerable,
+        "unresolved":       unresolved,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 47: check_supply_chain_risk
+# ---------------------------------------------------------------------------
+# "If I install X, what vulnerable code am I pulling in?" We walk one level
+# of direct dependencies (depth=1) and audit them all. A deeper walk is
+# possible but explodes quickly — keep it shallow by default.
+@mcp.tool(
+    name="check_supply_chain_risk",
+    description=(
+        "Check if any direct dependencies of a given npm package have known "
+        "vulnerabilities. Reports a risk level and the full per-dep audit."
+    ),
+)
+async def check_supply_chain_risk(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    manifest = await _fetch_manifest(package_name, version)
+    deps = manifest.get("dependencies", {}) or {}
+
+    # Re-use audit_all_dependencies' logic.
+    audit = await audit_all_dependencies(
+        package_json={},
+        dependencies=deps,
+        include_dev=False,
+    )
+
+    vuln_count = audit.get("vulnerable_count", 0)
+    checked = audit.get("checked", 0)
+
+    # Risk tier — simple heuristic.
+    if vuln_count == 0:
+        risk = "clean"
+    elif vuln_count <= 1 and checked >= 5:
+        risk = "low"
+    elif vuln_count <= 3:
+        risk = "medium"
+    else:
+        risk = "high"
+
+    return {
+        "package":           manifest.get("name", package_name),
+        "version":           manifest.get("version"),
+        "direct_dep_count":  checked,
+        "vulnerable_deps":   vuln_count,
+        "risk":              risk,
+        "details":           audit.get("packages", []),
+        "unresolved":        audit.get("unresolved", []),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 48: get_patched_version
+# ---------------------------------------------------------------------------
+# Given an advisory ID, look at its "affected" ranges and extract the first
+# "fixed" version for each affected npm package. Answers "what version do
+# I need to upgrade to in order to be safe?".
+@mcp.tool(
+    name="get_patched_version",
+    description=(
+        "Given a vulnerability ID, return the patched (fixed) versions per "
+        "affected npm package — the versions you need to upgrade to."
+    ),
+)
+async def get_patched_version(
+    vuln_id: str = Field(description="Advisory ID (GHSA, CVE, OSV, ...).")
+) -> dict:
+    details = await get_vulnerability_details(vuln_id=vuln_id)
+
+    patches = []
+    for aff in details.get("affected_npm", []) or []:
+        fixes = aff.get("fixed_versions") or []
+        if not fixes:
+            patches.append({
+                "package": aff.get("package"),
+                "fix_available": False,
+                "note": "No fix version declared in the advisory.",
+            })
+            continue
+        # Pick the lowest fix version — usually the minimum safe upgrade.
+        def _key(v: str) -> tuple:
+            parsed = _parse_semver(v)
+            return parsed if parsed is not None else (0, 0, 0)
+
+        first_fix = min(fixes, key=_key)
+        patches.append({
+            "package":        aff.get("package"),
+            "fix_available":  True,
+            "first_patched":  first_fix,
+            "all_patched":    fixes,
+            "affected_ranges": aff.get("ranges", []),
+        })
+
+    return {
+        "id":       details.get("id"),
+        "summary":  details.get("summary", ""),
+        "patches":  patches,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------

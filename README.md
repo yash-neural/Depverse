@@ -17,7 +17,7 @@ The server speaks MCP's `stdio` transport, so it plugs straight into Claude Code
 
 ## Features
 
-Depverse exposes **44 tools** grouped into eight categories.
+Depverse exposes **48 tools** grouped into eight categories.
 
 ### Version tools
 | Tool | What it does |
@@ -60,6 +60,10 @@ Depverse exposes **44 tools** grouped into eight categories.
 | `get_download_trend` | Day-by-day download counts over a range (`last-month`, `last-year`, or custom dates) with a `growing` / `declining` / `flat` trend label. |
 | `compare_popularity` | Side-by-side download counts for 2–10 packages. Returns a ranking plus each package's share of the combined total. |
 | `get_download_by_version` | Per-version download breakdown for the last week — shows which versions users are actually installing, plus the most popular major line. |
+| `get_vulnerability_details` | Full details for a specific advisory ID (GHSA, CVE, OSV) — summary, severity, affected npm packages, patched versions. |
+| `audit_all_dependencies` | One-call vulnerability audit of a whole `package.json` via OSV's batch endpoint. Reports per-dep vuln counts. |
+| `check_supply_chain_risk` | Resolves a package's direct deps, audits them all, and returns a `clean` / `low` / `medium` / `high` risk tier. |
+| `get_patched_version` | Given a CVE/GHSA/OSV ID, returns the first patched version per affected npm package — what you need to upgrade to. |
 
 ### Compatibility & Update tools
 | Tool | What it does |

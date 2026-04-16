@@ -751,7 +751,7 @@
         <span class="badge accent">v0.1.0</span>
         <span class="badge">Python 3.10+</span>
         <span class="badge">MCP 1.8.0+</span>
-        <span class="badge">44 Tools</span>
+        <span class="badge">48 Tools</span>
       </div>
 
       <h1 class="hero-title">Depverse Documentation</h1>
@@ -763,7 +763,7 @@
 
       <div class="cta-row">
         <a class="btn primary" href="#installation">Install in 2 minutes →</a>
-        <a class="btn secondary" href="#tool-reference">Browse all 44 tools →</a>
+        <a class="btn secondary" href="#tool-reference">Browse all 48 tools →</a>
         <a class="btn secondary" href="https://github.com/yash-neural/Depverse" target="_blank" rel="noopener">View on GitHub</a>
       </div>
 
@@ -848,7 +848,7 @@
       <h3>Project layout</h3>
 <pre><span class="cmt"># repo root</span>
 Depverse/
-├── mcp_server.py       <span class="cmt"># The MCP server — all 44 tools</span>
+├── mcp_server.py       <span class="cmt"># The MCP server — all 48 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
 ├── pyproject.toml
@@ -924,7 +924,7 @@ uv pip install -e .</pre>
       <h2>Register with an MCP Client</h2>
       <p>
         Depverse is a <strong>standard MCP server</strong>. Any MCP-aware client can launch it over stdio and use its
-        44 tools. Pick your client below for a copy-paste config.
+        48 tools. Pick your client below for a copy-paste config.
       </p>
 
       <div class="callout info">
@@ -951,7 +951,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       <h4>Verify</h4>
 <pre><span class="cmt"># restart Claude Code, then:</span>
 /mcp
-<span class="cmt"># should list: Depverse → 44 tools</span></pre>
+<span class="cmt"># should list: Depverse → 48 tools</span></pre>
 
       <h4>Other Claude Code commands</h4>
       <div class="cards-grid">
@@ -1135,7 +1135,7 @@ python
     <!-- ========== TOOLS ========== -->
     <section class="doc-section" id="tools-version">
       <h2>Tools</h2>
-      <p>Depverse exposes <strong>44 tools</strong> in eight groups. All return JSON; errors surface as typed MCP tool errors.</p>
+      <p>Depverse exposes <strong>48 tools</strong> in eight groups. All return JSON; errors surface as typed MCP tool errors.</p>
 
       <h3 id="tools-version-h">Version tools <span style="color: var(--muted); font-weight: 400;">(6)</span></h3>
       <p>These answer <em>"which version?"</em> questions.</p>
@@ -1252,7 +1252,7 @@ python
     </section>
 
     <section class="doc-section" id="tools-security">
-      <h3>Security &amp; Health tools <span style="color: var(--muted); font-weight: 400;">(8)</span></h3>
+      <h3>Security &amp; Health tools <span style="color: var(--muted); font-weight: 400;">(12)</span></h3>
       <p>These answer <em>"is this package safe and alive?"</em> questions.</p>
       <div class="cards-grid">
         <div class="card">
@@ -1298,6 +1298,26 @@ python
           <div class="card-name">get_download_by_version</div>
           <div class="card-title">Per-version Breakdown</div>
           <div class="card-desc">Which versions are users actually installing? Returns the top N versions + the most popular major line — essential for deprecation planning.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_vulnerability_details</div>
+          <div class="card-title">CVE / GHSA Lookup</div>
+          <div class="card-desc">Full details for an advisory ID — summary, severity, affected npm packages, patched versions. Accepts GHSA, CVE, OSV IDs.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">audit_all_dependencies</div>
+          <div class="card-title">Whole-project Audit</div>
+          <div class="card-desc">One-call vulnerability scan of a whole <code>package.json</code> via OSV's batch endpoint. Optionally includes devDependencies.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">check_supply_chain_risk</div>
+          <div class="card-title">Direct-dep Risk Tier</div>
+          <div class="card-desc">Resolves a package's dependencies, audits them all, returns a <code>clean</code> / <code>low</code> / <code>medium</code> / <code>high</code> risk tier.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_patched_version</div>
+          <div class="card-title">Minimum Safe Upgrade</div>
+          <div class="card-desc">Given an advisory ID, returns the first patched version per affected npm package — tells you exactly what to upgrade to.</div>
         </div>
       </div>
     </section>
@@ -1474,6 +1494,10 @@ python
           <tr><td><code>get_download_trend</code></td><td><code>package_name, period?</code></td><td><code>api.npmjs.org/downloads/range</code></td><td><code>{ trend, total, series[], average_daily }</code></td></tr>
           <tr><td><code>compare_popularity</code></td><td><code>packages[], period?</code></td><td><code>api.npmjs.org/downloads/point</code> bulk + parallel scoped</td><td><code>{ winner, ranking[{rank, share}] }</code></td></tr>
           <tr><td><code>get_download_by_version</code></td><td><code>package_name, top_n?</code></td><td><code>api.npmjs.org/versions/{pkg}/last-week</code></td><td><code>{ top_versions[], most_popular_major }</code></td></tr>
+          <tr><td><code>get_vulnerability_details</code></td><td><code>vuln_id</code></td><td><code>GET api.osv.dev/v1/vulns/{id}</code></td><td><code>{ summary, severity, affected_npm[], references[] }</code></td></tr>
+          <tr><td><code>audit_all_dependencies</code></td><td><code>package_json, dependencies{}, include_dev?</code></td><td><code>POST api.osv.dev/v1/querybatch</code></td><td><code>{ vulnerable_count, packages[], unresolved[] }</code></td></tr>
+          <tr><td><code>check_supply_chain_risk</code></td><td><code>package_name, version?</code></td><td>Manifest + OSV batch</td><td><code>{ risk, vulnerable_deps, details[] }</code></td></tr>
+          <tr><td><code>get_patched_version</code></td><td><code>vuln_id</code></td><td><code>GET api.osv.dev/v1/vulns/{id}</code></td><td><code>{ patches[{package, first_patched}] }</code></td></tr>
 
           <tr class="group-row"><td colspan="4">Compatibility &amp; Update Tools</td></tr>
           <tr><td><code>check_node_compatibility</code></td><td><code>package_name, version?</code></td><td><code>GET /{pkg}/{version|latest}</code></td><td><code>{ engines, node, npm, yarn }</code></td></tr>
