@@ -2133,6 +2133,274 @@ async def resolve_cdn_url(
     }
 
 
+# ===========================================================================
+# DOWNLOAD DEEP-DIVE TOOLS (extends Security & Health)
+# ===========================================================================
+# Complements get_download_stats with three richer views:
+#   get_download_trend        - day-by-day counts over a range
+#   compare_popularity        - side-by-side weekly counts for 2-5 packages
+#   get_download_by_version   - which versions are people actually installing?
+
+
+# ---------------------------------------------------------------------------
+# TOOL 37: get_download_trend
+# ---------------------------------------------------------------------------
+# api.npmjs.org exposes a "range" endpoint that returns daily counts for up
+# to 18 months. We derive a simple trend slope (growing / declining / flat)
+# by comparing the first and last quartiles of the series — good enough to
+# answer "is this package growing or dying?" without pulling in a chart lib.
+@mcp.tool(
+    name="get_download_trend",
+    description=(
+        "Get day-by-day download counts over a range (e.g. 'last-month', "
+        "'last-year', or a 'YYYY-MM-DD:YYYY-MM-DD' pair). Includes a simple "
+        "growing / declining / flat trend label."
+    ),
+)
+async def get_download_trend(
+    package_name: str = Field(description="Exact npm package name."),
+    period: str = Field(
+        default="last-month",
+        description=(
+            "One of: 'last-day', 'last-week', 'last-month', 'last-year', "
+            "or a custom 'YYYY-MM-DD:YYYY-MM-DD' range (max 540 days)."
+        ),
+    ),
+) -> dict:
+    url = f"https://api.npmjs.org/downloads/range/{period}/{package_name}"
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get(url)
+    except httpx.RequestError as exc:
+        raise ValueError(f"Could not reach npm download API: {exc}") from exc
+
+    if response.status_code == 404:
+        raise ValueError(f"npm package '{package_name}' was not found.")
+    if response.status_code >= 400:
+        raise ValueError(
+            f"npm downloads API returned HTTP {response.status_code}."
+        )
+
+    data = response.json()
+    series = data.get("downloads", []) or []
+    # Each entry is {"day": "YYYY-MM-DD", "downloads": int}.
+    counts = [d.get("downloads", 0) for d in series]
+    total = sum(counts)
+
+    # Compare the first and last quartiles for a robust trend signal — a
+    # single-day spike won't flip the result the way a raw first-vs-last
+    # comparison would.
+    trend = "unknown"
+    first_q_avg = 0.0
+    last_q_avg = 0.0
+    if len(counts) >= 4:
+        q = max(1, len(counts) // 4)
+        first_q_avg = sum(counts[:q]) / q
+        last_q_avg  = sum(counts[-q:]) / q
+        if first_q_avg == 0 and last_q_avg == 0:
+            trend = "zero"
+        elif first_q_avg == 0:
+            trend = "growing"
+        else:
+            ratio = last_q_avg / first_q_avg
+            if ratio >= 1.2:
+                trend = "growing"
+            elif ratio <= 0.8:
+                trend = "declining"
+            else:
+                trend = "flat"
+
+    return {
+        "package":        package_name,
+        "period":         period,
+        "start":          data.get("start"),
+        "end":            data.get("end"),
+        "total":          total,
+        "days":           len(series),
+        "average_daily":  round(total / len(series), 1) if series else 0,
+        "peak_day":       max(series, key=lambda d: d.get("downloads", 0))
+                          if series else None,
+        "trend":          trend,
+        "first_quarter_avg": round(first_q_avg, 1),
+        "last_quarter_avg":  round(last_q_avg, 1),
+        "series":         series,   # full daily series for charting
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 38: compare_popularity
+# ---------------------------------------------------------------------------
+# The download API accepts comma-separated package names (up to 128) at the
+# /point endpoint. We use that for scoped calls that fit in one request, plus
+# a parallel fallback for odd edge cases. Ranks the results and returns a
+# winner.
+@mcp.tool(
+    name="compare_popularity",
+    description=(
+        "Compare weekly or monthly download counts for 2–10 npm packages "
+        "side by side. Returns sorted ranking, absolute numbers, and each "
+        "package's share of the total."
+    ),
+)
+async def compare_popularity(
+    packages: list[str] = Field(
+        description="List of 2–10 exact npm package names to compare."
+    ),
+    period: str = Field(
+        default="last-week",
+        description="One of: 'last-day', 'last-week', 'last-month'.",
+    ),
+) -> dict:
+    if not packages or len(packages) < 2:
+        raise ValueError("Provide at least 2 package names to compare.")
+    if len(packages) > 10:
+        raise ValueError("compare_popularity supports at most 10 packages per call.")
+
+    # Scoped packages (starting with "@") can't be mixed into the bulk
+    # comma-separated form — npm's endpoint rejects that. Split into a bulk
+    # batch + per-package batch for scoped names.
+    bulk = [p for p in packages if not p.startswith("@")]
+    scoped = [p for p in packages if p.startswith("@")]
+
+    downloads: dict[str, int] = {}
+
+    async def _fetch_single(name: str) -> tuple[str, int]:
+        url = f"https://api.npmjs.org/downloads/point/{period}/{name}"
+        try:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                r = await client.get(url)
+            if r.status_code != 200:
+                return name, 0
+            return name, r.json().get("downloads", 0) or 0
+        except httpx.RequestError:
+            return name, 0
+
+    if bulk:
+        # Bulk endpoint: one HTTP call for a list of non-scoped packages.
+        # IMPORTANT: npm returns TWO different shapes here:
+        #   - single package:    {downloads, start, end, package}
+        #   - multiple packages: {pkg1: {...}, pkg2: {...}}
+        # We always hit the single-package path when bulk has just one name.
+        if len(bulk) == 1:
+            pairs = await asyncio.gather(*(_fetch_single(n) for n in bulk))
+            downloads.update(dict(pairs))
+        else:
+            url = f"https://api.npmjs.org/downloads/point/{period}/{','.join(bulk)}"
+            try:
+                async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                    r = await client.get(url)
+                if r.status_code == 200:
+                    data = r.json()
+                    for name in bulk:
+                        entry = data.get(name) or {}
+                        downloads[name] = entry.get("downloads", 0) or 0
+                else:
+                    # Fall back to per-package fetch if bulk fails.
+                    pairs = await asyncio.gather(*(_fetch_single(n) for n in bulk))
+                    downloads.update(dict(pairs))
+            except httpx.RequestError as exc:
+                raise ValueError(f"Could not reach npm download API: {exc}") from exc
+
+    if scoped:
+        # Scoped packages — parallel fan-out.
+        pairs = await asyncio.gather(*(_fetch_single(n) for n in scoped))
+        downloads.update(dict(pairs))
+
+    # Rank highest-first and compute each package's share of the total.
+    total = sum(downloads.values())
+    ranked = sorted(downloads.items(), key=lambda kv: kv[1], reverse=True)
+    ranking = [
+        {
+            "rank":     i,
+            "name":     name,
+            "downloads": count,
+            "share":    round((count / total) * 100, 2) if total else 0.0,
+        }
+        for i, (name, count) in enumerate(ranked, 1)
+    ]
+
+    return {
+        "period":  period,
+        "total":   total,
+        "winner":  ranked[0][0] if ranked else None,
+        "ranking": ranking,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 39: get_download_by_version
+# ---------------------------------------------------------------------------
+# api.npmjs.org exposes a per-version breakdown: which versions are people
+# actually installing? This is the "are users still on v16 even though v18
+# is out?" question — crucial context for maintainers planning deprecations.
+@mcp.tool(
+    name="get_download_by_version",
+    description=(
+        "Get last-week download counts broken down by version. Answers "
+        "'which version is actually being used?' — useful for maintainers "
+        "planning deprecations and for consumers gauging real-world adoption."
+    ),
+)
+async def get_download_by_version(
+    package_name: str = Field(description="Exact npm package name."),
+    top_n: int = Field(
+        default=10,
+        description="Return only the top N versions by download count (1–50).",
+    ),
+) -> dict:
+    url = f"https://api.npmjs.org/versions/{package_name}/last-week"
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get(url)
+    except httpx.RequestError as exc:
+        raise ValueError(f"Could not reach npm versions API: {exc}") from exc
+
+    if response.status_code == 404:
+        raise ValueError(f"npm package '{package_name}' was not found.")
+    if response.status_code >= 400:
+        raise ValueError(
+            f"npm versions API returned HTTP {response.status_code}."
+        )
+
+    data = response.json()
+    versions = data.get("downloads", {}) or {}
+    total = sum(versions.values())
+
+    # Sort by download count, descending. The raw response is unordered.
+    sorted_items = sorted(versions.items(), key=lambda kv: kv[1], reverse=True)
+    cap = max(1, min(int(top_n), 50))
+    top = sorted_items[:cap]
+
+    # Identify the most-downloaded major version family (e.g. v17 vs v18).
+    major_totals: dict[str, int] = {}
+    for ver, count in sorted_items:
+        parsed = _parse_semver(ver)
+        if parsed is None:
+            continue
+        key = f"{parsed[0]}.x"
+        major_totals[key] = major_totals.get(key, 0) + count
+    top_major = max(major_totals.items(), key=lambda kv: kv[1]) if major_totals else None
+
+    return {
+        "package":      package_name,
+        "period":       "last-week",
+        "total":        total,
+        "total_versions": len(versions),
+        "top_versions": [
+            {
+                "version":   ver,
+                "downloads": count,
+                "share":     round((count / total) * 100, 2) if total else 0.0,
+            }
+            for ver, count in top
+        ],
+        "most_popular_major": (
+            {"major": top_major[0], "downloads": top_major[1]}
+            if top_major else None
+        ),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------

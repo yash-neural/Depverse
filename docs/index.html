@@ -750,7 +750,7 @@
         <span class="badge accent">v0.1.0</span>
         <span class="badge">Python 3.10+</span>
         <span class="badge">MCP 1.8.0+</span>
-        <span class="badge">36 Tools</span>
+        <span class="badge">39 Tools</span>
       </div>
 
       <h1 class="hero-title">Depverse Documentation</h1>
@@ -762,7 +762,7 @@
 
       <div class="cta-row">
         <a class="btn primary" href="#installation">Install in 2 minutes →</a>
-        <a class="btn secondary" href="#tool-reference">Browse all 36 tools →</a>
+        <a class="btn secondary" href="#tool-reference">Browse all 39 tools →</a>
         <a class="btn secondary" href="https://github.com/yash-neural/Depverse" target="_blank" rel="noopener">View on GitHub</a>
       </div>
 
@@ -853,7 +853,7 @@
       <h3>Project layout</h3>
 <pre><span class="cmt"># repo root</span>
 Depverse/
-├── mcp_server.py       <span class="cmt"># The MCP server — all 36 tools</span>
+├── mcp_server.py       <span class="cmt"># The MCP server — all 39 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
 ├── main.py             <span class="cmt"># Entrypoint for the CLI chat</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
@@ -926,7 +926,7 @@ uv pip install -e .</pre>
       <h2>Register with an MCP Client</h2>
       <p>
         Depverse is a <strong>standard MCP server</strong>. Any MCP-aware client can launch it over stdio and use its
-        36 tools. Pick your client below for a copy-paste config.
+        39 tools. Pick your client below for a copy-paste config.
       </p>
 
       <div class="callout info">
@@ -953,7 +953,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       <h4>Verify</h4>
 <pre><span class="cmt"># restart Claude Code, then:</span>
 /mcp
-<span class="cmt"># should list: Depverse → 36 tools</span></pre>
+<span class="cmt"># should list: Depverse → 39 tools</span></pre>
 
       <h4>Other Claude Code commands</h4>
       <div class="cards-grid">
@@ -1137,7 +1137,7 @@ python
     <!-- ========== TOOLS ========== -->
     <section class="doc-section" id="tools-version">
       <h2>Tools</h2>
-      <p>Depverse exposes <strong>36 tools</strong> in seven groups. All return JSON; errors surface as typed MCP tool errors.</p>
+      <p>Depverse exposes <strong>39 tools</strong> in seven groups. All return JSON; errors surface as typed MCP tool errors.</p>
 
       <h3 id="tools-version-h">Version tools <span style="color: var(--muted); font-weight: 400;">(6)</span></h3>
       <p>These answer <em>"which version?"</em> questions.</p>
@@ -1254,7 +1254,7 @@ python
     </section>
 
     <section class="doc-section" id="tools-security">
-      <h3>Security &amp; Health tools <span style="color: var(--muted); font-weight: 400;">(5)</span></h3>
+      <h3>Security &amp; Health tools <span style="color: var(--muted); font-weight: 400;">(8)</span></h3>
       <p>These answer <em>"is this package safe and alive?"</em> questions.</p>
       <div class="cards-grid">
         <div class="card">
@@ -1285,6 +1285,21 @@ python
             <code>exress</code> → <strong>high</strong> (1 edit from <code>express</code>);
             <code>lodaash</code> → <strong>medium</strong>; unrelated names → <strong>none</strong>.
           </div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_download_trend</div>
+          <div class="card-title">Trend Over Time</div>
+          <div class="card-desc">Day-by-day counts for <code>last-month</code>, <code>last-year</code>, or a custom date range, plus a <code>growing</code> / <code>declining</code> / <code>flat</code> label.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">compare_popularity</div>
+          <div class="card-title">Side-by-side Ranking</div>
+          <div class="card-desc">Rank 2–10 packages by downloads in one call. Returns each package's share of the total.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_download_by_version</div>
+          <div class="card-title">Per-version Breakdown</div>
+          <div class="card-desc">Which versions are users actually installing? Returns the top N versions + the most popular major line — essential for deprecation planning.</div>
         </div>
       </div>
     </section>
@@ -1423,6 +1438,9 @@ python
           <tr><td><code>check_maintainer_activity</code></td><td><code>package_name</code></td><td><code>GET /{pkg}</code> (reads <code>time</code>)</td><td><code>{ status, days_since_last_publish, abandoned }</code></td></tr>
           <tr><td><code>get_download_stats</code></td><td><code>package_name</code></td><td><code>api.npmjs.org/downloads/point/*</code></td><td><code>{ last_day, last_week, last_month, popularity }</code></td></tr>
           <tr><td><code>check_typosquat_risk</code></td><td><code>package_name</code></td><td>Local Levenshtein vs. top-50 list</td><td><code>{ risk, closest_popular, edit_distance }</code></td></tr>
+          <tr><td><code>get_download_trend</code></td><td><code>package_name, period?</code></td><td><code>api.npmjs.org/downloads/range</code></td><td><code>{ trend, total, series[], average_daily }</code></td></tr>
+          <tr><td><code>compare_popularity</code></td><td><code>packages[], period?</code></td><td><code>api.npmjs.org/downloads/point</code> bulk + parallel scoped</td><td><code>{ winner, ranking[{rank, share}] }</code></td></tr>
+          <tr><td><code>get_download_by_version</code></td><td><code>package_name, top_n?</code></td><td><code>api.npmjs.org/versions/{pkg}/last-week</code></td><td><code>{ top_versions[], most_popular_major }</code></td></tr>
 
           <tr class="group-row"><td colspan="4">Compatibility &amp; Update Tools</td></tr>
           <tr><td><code>check_node_compatibility</code></td><td><code>package_name, version?</code></td><td><code>GET /{pkg}/{version|latest}</code></td><td><code>{ engines, node, npm, yarn }</code></td></tr>

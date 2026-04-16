@@ -16,7 +16,7 @@ The server speaks the MCP `stdio` transport, so it plugs straight into Claude De
 
 ## Features
 
-Depverse exposes **36 tools** grouped into seven categories.
+Depverse exposes **39 tools** grouped into seven categories.
 
 ### Version tools
 | Tool | What it does |
@@ -56,6 +56,9 @@ Depverse exposes **36 tools** grouped into seven categories.
 | `check_maintainer_activity` | Last publish date, publish count, average cadence, and a status label (`active` / `slowing` / `stale` / `abandoned`). |
 | `get_download_stats` | Weekly / monthly download counts from the public npm download API, plus a simple popularity tier. |
 | `check_typosquat_risk` | Flags names suspiciously close to popular packages via Levenshtein distance — catches common supply-chain typos. |
+| `get_download_trend` | Day-by-day download counts over a range (`last-month`, `last-year`, or custom dates) with a `growing` / `declining` / `flat` trend label. |
+| `compare_popularity` | Side-by-side download counts for 2–10 packages. Returns a ranking plus each package's share of the combined total. |
+| `get_download_by_version` | Per-version download breakdown for the last week — shows which versions users are actually installing, plus the most popular major line. |
 
 ### Compatibility & Update tools
 | Tool | What it does |
