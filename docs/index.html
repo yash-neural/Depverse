@@ -701,7 +701,6 @@
       <a href="#register-windsurf" class="sub">Windsurf</a>
       <a href="#register-copilot" class="sub">GitHub Copilot</a>
       <a href="#register-generic" class="sub">Generic / Other</a>
-      <a href="#run-cli">Run the CLI Chat</a>
     </div>
 
     <div class="sidebar-section">
@@ -878,9 +877,8 @@ Depverse/
         <li><strong><a href="https://github.com/astral-sh/uv" target="_blank" rel="noopener">uv</a></strong> (recommended) or plain <code>pip</code></li>
       </ul>
       <div class="callout info">
-        <strong>No Anthropic API key required</strong> to run the MCP server — Claude Code (or any MCP client)
-        brings its own auth. A key is only needed if you also want to use the bundled
-        <a href="#run-cli">CLI chat</a>.
+        <strong>No Anthropic API key required.</strong> The MCP server has no secrets, no tokens, no state —
+        Claude Code (or any MCP client) brings its own auth.
       </div>
 
       <div class="steps">
@@ -1134,23 +1132,6 @@ python
         their own function-calling format). Depverse won't register directly with those tools — you'd need an
         MCP-to-function-calling adapter.
       </div>
-    </section>
-
-    <!-- ========== RUN CLI CHAT ========== -->
-    <section class="doc-section" id="run-cli">
-      <h2>Run the CLI chat</h2>
-      <p>
-        If you don't use Claude Code, the repo includes its own CLI chat (<code>main.py</code>) that spawns the server
-        over stdio and talks to Claude via the Anthropic API:
-      </p>
-<pre>uv run main.py
-
-<span class="cmt"># you'll see a "&gt; " prompt — try:</span>
-&gt; what's the latest version of react?
-&gt; show me the peer deps of react-dom
-&gt; is express@5.0.0 published yet?</pre>
-
-      <p>The CLI supports tab completion for <code>/</code>-commands, history via <kbd>↑</kbd>/<kbd>↓</kbd>, and auto-suggestions as you type.</p>
     </section>
 
     <!-- ========== TOOLS ========== -->
