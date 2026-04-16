@@ -1843,6 +1843,296 @@ async def get_organization_packages(
     }
 
 
+# ===========================================================================
+# UTILITY TOOLS
+# ===========================================================================
+# Handy helpers that don't fit the other categories:
+#   batch_get_versions        - latest-version lookup for N packages at once
+#   validate_package_json     - sanity-check dep ranges in a package.json
+#   generate_install_command  - build npm / pnpm / yarn install commands
+#   resolve_cdn_url           - jsDelivr / unpkg URLs for a pkg[@version][/file]
+
+
+# ---------------------------------------------------------------------------
+# TOOL 33: batch_get_versions
+# ---------------------------------------------------------------------------
+# Given a list of packages, fetch each one's "latest" in parallel. Much faster
+# than calling get_latest_version repeatedly — one HTTP round-trip per package
+# instead of a sequential chain.
+@mcp.tool(
+    name="batch_get_versions",
+    description=(
+        "Get the latest version for many npm packages at once (parallel "
+        "fetch). Returns a {name: version} map plus any per-package errors."
+    ),
+)
+async def batch_get_versions(
+    package_names: list[str] = Field(
+        description="List of exact npm package names to look up, e.g. ['react', 'lodash', '@types/node']."
+    ),
+) -> dict:
+    if not package_names:
+        return {"checked": 0, "versions": {}, "errors": {}}
+
+    async def _one(name: str) -> tuple[str, str | None, str | None]:
+        try:
+            data = await _fetch_json(
+                f"{NPM_REGISTRY}/{name}/latest",
+                not_found_msg=f"npm package '{name}' was not found.",
+            )
+            return name, data.get("version"), None
+        except ValueError as exc:
+            # Errors are per-package — don't blow up the whole batch.
+            return name, None, str(exc)
+
+    # Fan out. npm's CDN handles this fine; we're hitting /latest which is cheap.
+    results = await asyncio.gather(*(_one(n) for n in package_names))
+
+    versions: dict[str, str] = {}
+    errors:   dict[str, str] = {}
+    for name, ver, err in results:
+        if err:
+            errors[name] = err
+        elif ver is not None:
+            versions[name] = ver
+
+    return {
+        "checked":  len(package_names),
+        "resolved": len(versions),
+        "failed":   len(errors),
+        "versions": versions,
+        "errors":   errors,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 34: validate_package_json
+# ---------------------------------------------------------------------------
+# Sanity-checks the dep ranges a consumer would feed to npm install. For each
+# declared range we:
+#   1. verify the syntax is a recognisable npm range (leveraging _satisfies)
+#   2. resolve it to a concrete version via the same logic as resolve_semver
+#   3. flag ranges that don't match ANY published version (likely a typo)
+# Accepts either dependency maps directly or a whole package.json object.
+@mcp.tool(
+    name="validate_package_json",
+    description=(
+        "Validate the dependency ranges in a package.json. Checks syntax and "
+        "verifies each range resolves to at least one published version. "
+        "Pass the whole package.json object OR the individual dep maps."
+    ),
+)
+async def validate_package_json(
+    package_json: dict = Field(
+        default_factory=dict,
+        description="Full package.json object. Its dependencies/devDependencies/peerDependencies fields will be validated.",
+    ),
+    dependencies: dict[str, str] = Field(
+        default_factory=dict,
+        description="Alternative to package_json — pass a bare {name: range} map directly.",
+    ),
+) -> dict:
+    # Build the unified {name: range} map we'll validate.
+    to_check: dict[str, dict[str, str]] = {
+        "dependencies":     (package_json.get("dependencies")     or {}),
+        "devDependencies":  (package_json.get("devDependencies")  or {}),
+        "peerDependencies": (package_json.get("peerDependencies") or {}),
+    }
+    if dependencies:
+        # Merge the bare map under the "dependencies" bucket.
+        to_check["dependencies"] = {**to_check["dependencies"], **dependencies}
+
+    # Flat list of (bucket, name, range) for a single parallel fan-out.
+    items: list[tuple[str, str, str]] = [
+        (bucket, name, range_)
+        for bucket, deps in to_check.items()
+        for name, range_ in deps.items()
+    ]
+
+    async def _validate_one(bucket: str, name: str, range_: str) -> dict:
+        # Trivial ranges are always valid and don't need a resolve call.
+        if range_ in ("*", "latest") or not range_.strip():
+            return {
+                "bucket": bucket, "name": name, "range": range_,
+                "status": "ok", "resolved": None,
+                "note": "Range accepts any version.",
+            }
+
+        # Fetch the package, try to find a matching version.
+        try:
+            pkg = await _fetch_json(
+                f"{NPM_REGISTRY}/{name}",
+                not_found_msg=f"npm package '{name}' was not found.",
+            )
+        except ValueError as exc:
+            return {
+                "bucket": bucket, "name": name, "range": range_,
+                "status": "package_not_found", "error": str(exc),
+            }
+
+        versions = list((pkg.get("versions", {}) or {}).keys())
+        # Reuse the existing matcher from check_peer_compatibility.
+        matches = [v for v in versions if _satisfies(v, range_) == "yes"]
+        if not matches:
+            return {
+                "bucket": bucket, "name": name, "range": range_,
+                "status": "no_matching_version",
+                "note": "Range is syntactically valid but resolves to no published version.",
+            }
+
+        def _key(v: str) -> tuple:
+            parsed = _parse_semver(v)
+            return parsed if parsed is not None else (0, 0, 0)
+
+        return {
+            "bucket": bucket, "name": name, "range": range_,
+            "status": "ok", "resolved": max(matches, key=_key),
+        }
+
+    results = await asyncio.gather(*(_validate_one(*t) for t in items))
+
+    # Summarise by status so callers can see the picture at a glance.
+    summary: dict[str, int] = {}
+    for r in results:
+        summary[r["status"]] = summary.get(r["status"], 0) + 1
+
+    return {
+        "valid":   summary.get("ok", 0) == len(results),
+        "checked": len(results),
+        "summary": summary,
+        "results": results,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 35: generate_install_command
+# ---------------------------------------------------------------------------
+# Turns a list of packages into shell install commands for the three main
+# package managers. Covers the common flags: --save-dev, --save-exact. No
+# network calls — this is pure string assembly.
+@mcp.tool(
+    name="generate_install_command",
+    description=(
+        "Generate install commands for npm / pnpm / yarn / bun from a list "
+        "of packages (each optionally pinned to a version). Supports dev "
+        "and exact flags."
+    ),
+)
+async def generate_install_command(
+    packages: list[str] = Field(
+        description=(
+            "List of package names. Each entry can include a version: "
+            "'react', 'react@18.2.0', '@babel/core@^7'."
+        )
+    ),
+    dev: bool = Field(
+        default=False,
+        description="If True, install as a devDependency.",
+    ),
+    exact: bool = Field(
+        default=False,
+        description="If True, pin versions exactly (no caret/tilde).",
+    ),
+) -> dict:
+    if not packages:
+        raise ValueError("At least one package name is required.")
+
+    # Build the unified package-arg string — same across managers.
+    args = " ".join(packages)
+
+    # Assemble a command per manager with the right flag dialect.
+    npm_flags = []
+    if dev:   npm_flags.append("--save-dev")
+    if exact: npm_flags.append("--save-exact")
+    npm_cmd  = "npm install " + (" ".join(npm_flags) + " " if npm_flags else "") + args
+
+    pnpm_flags = []
+    if dev:   pnpm_flags.append("--save-dev")
+    if exact: pnpm_flags.append("--save-exact")
+    pnpm_cmd = "pnpm add " + (" ".join(pnpm_flags) + " " if pnpm_flags else "") + args
+
+    yarn_flags = []
+    if dev:   yarn_flags.append("--dev")
+    if exact: yarn_flags.append("--exact")
+    yarn_cmd = "yarn add " + (" ".join(yarn_flags) + " " if yarn_flags else "") + args
+
+    bun_flags = []
+    if dev:   bun_flags.append("--dev")
+    if exact: bun_flags.append("--exact")
+    bun_cmd = "bun add " + (" ".join(bun_flags) + " " if bun_flags else "") + args
+
+    return {
+        "packages": packages,
+        "dev":      dev,
+        "exact":    exact,
+        "commands": {
+            "npm":  npm_cmd,
+            "pnpm": pnpm_cmd,
+            "yarn": yarn_cmd,
+            "bun":  bun_cmd,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 36: resolve_cdn_url
+# ---------------------------------------------------------------------------
+# Two popular npm-backed CDNs: jsDelivr and unpkg. Both accept the same URL
+# shape: https://<cdn>/<pkg>[@<version>][/<file>]. We emit both. If no
+# version is given, we fetch the latest so the returned URLs are pinned.
+@mcp.tool(
+    name="resolve_cdn_url",
+    description=(
+        "Build jsDelivr + unpkg CDN URLs for an npm package. Version-pins "
+        "to latest when no version is provided. Optional file path within "
+        "the package (e.g. 'dist/index.min.js')."
+    ),
+)
+async def resolve_cdn_url(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty to pin to latest.",
+    ),
+    file: str = Field(
+        default="",
+        description=(
+            "Optional path within the package (e.g. 'dist/react.production.min.js'). "
+            "Leave empty for the package root."
+        ),
+    ),
+) -> dict:
+    # Resolve "latest" so the URLs we hand back are actually immutable.
+    resolved_version = version
+    if not resolved_version:
+        data = await _fetch_json(
+            f"{NPM_REGISTRY}/{package_name}/latest",
+            not_found_msg=f"npm package '{package_name}' was not found.",
+        )
+        resolved_version = data.get("version", "")
+        if not resolved_version:
+            raise ValueError(
+                f"Could not resolve latest version for '{package_name}'."
+            )
+
+    # Normalise the file path — strip leading "/" so we don't double up.
+    file_suffix = ""
+    if file:
+        file_suffix = "/" + file.lstrip("/")
+
+    base = f"{package_name}@{resolved_version}{file_suffix}"
+
+    return {
+        "package":  package_name,
+        "version":  resolved_version,
+        "file":     file or None,
+        "jsdelivr": f"https://cdn.jsdelivr.net/npm/{base}",
+        "unpkg":    f"https://unpkg.com/{base}",
+        # ESM variant is handy for modern <script type="module"> usage.
+        "esm_sh":   f"https://esm.sh/{base}",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------

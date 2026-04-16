@@ -706,6 +706,7 @@
       <a href="#tools-security" class="sub">Security &amp; Health Tools</a>
       <a href="#tools-compat" class="sub">Compatibility &amp; Update Tools</a>
       <a href="#tools-search" class="sub">Search &amp; Discovery Tools</a>
+      <a href="#tools-utility" class="sub">Utility Tools</a>
       <a href="#tool-reference" class="sub">Full Reference</a>
     </div>
 
@@ -744,7 +745,7 @@
         <span class="badge accent">v0.1.0</span>
         <span class="badge">Python 3.10+</span>
         <span class="badge">MCP 1.8.0+</span>
-        <span class="badge">32 Tools</span>
+        <span class="badge">36 Tools</span>
       </div>
 
       <h1 class="hero-title">Depverse Documentation</h1>
@@ -756,7 +757,7 @@
 
       <div class="cta-row">
         <a class="btn primary" href="#installation">Install in 2 minutes →</a>
-        <a class="btn secondary" href="#tool-reference">Browse all 32 tools →</a>
+        <a class="btn secondary" href="#tool-reference">Browse all 36 tools →</a>
         <a class="btn secondary" href="https://github.com/yash-neural/Depverse" target="_blank" rel="noopener">View on GitHub</a>
       </div>
 
@@ -847,7 +848,7 @@
       <h3>Project layout</h3>
 <pre><span class="cmt"># repo root</span>
 Depverse/
-├── mcp_server.py       <span class="cmt"># The MCP server — all 32 tools</span>
+├── mcp_server.py       <span class="cmt"># The MCP server — all 36 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
 ├── main.py             <span class="cmt"># Entrypoint for the CLI chat</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
@@ -927,7 +928,7 @@ USE_UV=<span class="str">"1"</span>        <span class="cmt"># set to 1 so main.
     <section class="doc-section" id="register-claude-code">
       <h2>Register with Claude Code</h2>
       <p>
-        Claude Code itself is an MCP client. Once registered, Depverse's 32 tools are available in every Claude Code
+        Claude Code itself is an MCP client. Once registered, Depverse's 36 tools are available in every Claude Code
         conversation — no API key needed on your side, no custom CLI.
       </p>
 
@@ -949,7 +950,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       <p>Restart Claude Code, then run:</p>
 <pre>/mcp
 
-<span class="cmt"># should list: Depverse   → 32 tools</span></pre>
+<span class="cmt"># should list: Depverse   → 36 tools</span></pre>
 
       <h3>Other useful commands</h3>
       <div class="cards-grid">
@@ -992,7 +993,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
     <!-- ========== TOOLS ========== -->
     <section class="doc-section" id="tools-version">
       <h2>Tools</h2>
-      <p>Depverse exposes <strong>32 tools</strong> in six groups. All return JSON; errors surface as typed MCP tool errors.</p>
+      <p>Depverse exposes <strong>36 tools</strong> in seven groups. All return JSON; errors surface as typed MCP tool errors.</p>
 
       <h3 id="tools-version-h">Version tools <span style="color: var(--muted); font-weight: 400;">(6)</span></h3>
       <p>These answer <em>"which version?"</em> questions.</p>
@@ -1206,6 +1207,33 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       </div>
     </section>
 
+    <section class="doc-section" id="tools-utility">
+      <h3>Utility tools <span style="color: var(--muted); font-weight: 400;">(4)</span></h3>
+      <p>Ergonomic helpers that don't fit the other groups.</p>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-name">batch_get_versions</div>
+          <div class="card-title">Bulk Latest Lookup</div>
+          <div class="card-desc">Fetch <code>/latest</code> for many packages in parallel — one round-trip per package instead of sequential.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">validate_package_json</div>
+          <div class="card-title">Dep-range Validator</div>
+          <div class="card-desc">Checks each range in a <code>package.json</code> resolves to a published version. Catches typos like <code>lodash@999.0.0</code>.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">generate_install_command</div>
+          <div class="card-title">Install Command Builder</div>
+          <div class="card-desc">Produces install commands for <strong>npm</strong>, <strong>pnpm</strong>, <strong>yarn</strong>, and <strong>bun</strong> — with proper <code>--dev</code> / <code>--exact</code> dialects.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">resolve_cdn_url</div>
+          <div class="card-title">CDN URLs</div>
+          <div class="card-desc">Pinned URLs for <strong>jsDelivr</strong>, <strong>unpkg</strong>, and <strong>esm.sh</strong>. Optional file path. Auto-resolves "latest" to an immutable version.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- ========== FULL REFERENCE TABLE ========== -->
     <section class="doc-section" id="tool-reference">
       <h2>Full tool reference</h2>
@@ -1264,6 +1292,12 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
           <tr><td><code>get_similar_packages</code></td><td><code>package_name, limit?</code></td><td>Manifest keywords → <code>GET /-/v1/search</code></td><td><code>{ keywords_used, results[] }</code></td></tr>
           <tr><td><code>get_packages_by_author</code></td><td><code>username, limit?</code></td><td><code>GET /-/v1/search?text=author:{u}</code></td><td><code>{ author, count, packages[] }</code></td></tr>
           <tr><td><code>get_organization_packages</code></td><td><code>scope, limit?</code></td><td><code>GET /-/v1/search?text=@scope</code></td><td><code>{ scope, count, packages[] }</code></td></tr>
+
+          <tr class="group-row"><td colspan="4">Utility Tools</td></tr>
+          <tr><td><code>batch_get_versions</code></td><td><code>package_names[]</code></td><td>Parallel <code>/{pkg}/latest</code></td><td><code>{ versions{}, errors{} }</code></td></tr>
+          <tr><td><code>validate_package_json</code></td><td><code>package_json, dependencies{}</code></td><td>Per-dep <code>GET /{pkg}</code> + matcher</td><td><code>{ valid, summary, results[] }</code></td></tr>
+          <tr><td><code>generate_install_command</code></td><td><code>packages[], dev?, exact?</code></td><td>Local (no HTTP)</td><td><code>{ commands: { npm, pnpm, yarn, bun } }</code></td></tr>
+          <tr><td><code>resolve_cdn_url</code></td><td><code>package_name, version?, file?</code></td><td><code>GET /{pkg}/latest</code> (only if no version)</td><td><code>{ jsdelivr, unpkg, esm_sh }</code></td></tr>
         </tbody>
       </table>
 

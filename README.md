@@ -16,7 +16,7 @@ The server speaks the MCP `stdio` transport, so it plugs straight into Claude De
 
 ## Features
 
-Depverse exposes **32 tools** grouped into six categories.
+Depverse exposes **36 tools** grouped into seven categories.
 
 ### Version tools
 | Tool | What it does |
@@ -73,6 +73,14 @@ Depverse exposes **32 tools** grouped into six categories.
 | `get_similar_packages` | Finds alternatives to a package by searching on its declared keywords — filters out the source package itself. |
 | `get_packages_by_author` | All packages published by a given npm username (via `author:` qualifier). |
 | `get_organization_packages` | All packages under a scope like `@babel` or `@vue`. Over-fetches + strict prefix filter for reliability. |
+
+### Utility tools
+| Tool | What it does |
+| --- | --- |
+| `batch_get_versions` | Parallel `/latest` lookup for a list of packages — one round-trip per package instead of sequential. |
+| `validate_package_json` | Checks dep ranges in a `package.json` resolve to at least one published version. Flags typos like `lodash@999.0.0`. |
+| `generate_install_command` | Builds install commands for npm / pnpm / yarn / bun with `--dev` and `--exact` flag dialects handled per-manager. |
+| `resolve_cdn_url` | Pinned jsDelivr, unpkg, and esm.sh URLs for a package + optional file path. Auto-resolves "latest" when no version is given. |
 
 All tools return JSON. Errors become `ValueError`s with a clear message (e.g. `"npm package 'foo' was not found."`), which MCP surfaces to the client as a tool error.
 
