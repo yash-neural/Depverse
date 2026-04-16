@@ -2043,6 +2043,12 @@ $ claude mcp add your-server <span class="kw">--scope</span> project \
 
   let currentId = sections[0]?.id;
 
+  // Click lock: when the user clicks a sidebar link, smooth-scroll fires a
+  // flurry of scroll events that would otherwise drag the highlight through
+  // every intermediate section. This flag tells recompute() to hold its fire
+  // until the scroll settles.
+  let clickLockUntil = 0;
+
   function applyHighlight(id) {
     if (!id) return;
     currentId = id;
@@ -2067,6 +2073,9 @@ $ claude mcp add your-server <span class="kw">--scope</span> project \
   // Manual "which section is currently closest to the top" — most reliable
   // on long docs pages, where IntersectionObserver alone can miss.
   function recompute() {
+    // Skip while a click-initiated smooth-scroll is in progress.
+    if (Date.now() < clickLockUntil) return;
+
     const threshold = window.scrollY + HEADER_OFFSET + 40;
     let id = sections[0]?.id;
     for (const s of sections) {
@@ -2083,12 +2092,13 @@ $ claude mcp add your-server <span class="kw">--scope</span> project \
   window.addEventListener('scroll', recompute, { passive: true });
   window.addEventListener('resize', recompute, { passive: true });
 
-  // When the user clicks a link, apply highlight immediately (don't wait
-  // for the smooth scroll to finish).
+  // When the user clicks a link: apply the highlight immediately AND lock
+  // out the scroll-driven recompute for ~900ms so smooth-scroll can settle.
   sidebarLinks.forEach(link => {
     link.addEventListener('click', () => {
       const id = link.getAttribute('href').slice(1);
       applyHighlight(id);
+      clickLockUntil = Date.now() + 900;
     });
   });
 </script>
