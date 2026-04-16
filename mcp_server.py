@@ -1632,6 +1632,217 @@ async def check_outdated(
     }
 
 
+# ===========================================================================
+# SEARCH & DISCOVERY TOOLS
+# ===========================================================================
+# Wraps npm's public search endpoint (https://registry.npmjs.org/-/v1/search)
+# for finding packages rather than looking them up by name. Lets Claude
+# answer questions like "what http client libraries exist?" or "what packages
+# does @babel publish?" without you telling it the exact name.
+
+
+# ---------------------------------------------------------------------------
+# Shared helper for the search endpoint
+# ---------------------------------------------------------------------------
+# npm's search returns a rich structure: each hit has { package, score, ... }
+# where `package` is the manifest-flavoured summary and `score` is npm's own
+# quality/popularity/maintenance ranking. We trim each hit to a stable shape.
+NPM_SEARCH = f"{NPM_REGISTRY}/-/v1/search"
+
+
+def _summarise_search_hit(hit: dict) -> dict:
+    pkg = hit.get("package", {}) or {}
+    score = hit.get("score", {}) or {}
+    detail = score.get("detail", {}) or {}
+    links = pkg.get("links", {}) or {}
+    return {
+        "name":        pkg.get("name"),
+        "version":     pkg.get("version"),
+        "description": pkg.get("description", ""),
+        "keywords":    pkg.get("keywords", []) or [],
+        "date":        pkg.get("date"),
+        "publisher":   (pkg.get("publisher") or {}).get("username"),
+        "npm_url":     links.get("npm"),
+        "homepage":    links.get("homepage"),
+        "repository":  links.get("repository"),
+        # Normalise npm's 0-1 scores — useful for Claude to rank results.
+        "score":       round(hit.get("searchScore", 0) or 0, 2),
+        "quality":     round(detail.get("quality", 0), 2),
+        "popularity":  round(detail.get("popularity", 0), 2),
+        "maintenance": round(detail.get("maintenance", 0), 2),
+    }
+
+
+async def _npm_search(query: str, size: int = 20) -> list[dict]:
+    """Call the npm search API and return a list of summarised hits."""
+    # Clamp size — npm's endpoint caps at 250, but we want small payloads.
+    safe_size = max(1, min(int(size), 50))
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get(
+                NPM_SEARCH,
+                params={"text": query, "size": safe_size},
+            )
+    except httpx.RequestError as exc:
+        raise ValueError(f"Could not reach npm search: {exc}") from exc
+
+    if response.status_code >= 400:
+        raise ValueError(
+            f"npm search returned HTTP {response.status_code} for '{query}'."
+        )
+
+    return [_summarise_search_hit(h) for h in response.json().get("objects", [])]
+
+
+# ---------------------------------------------------------------------------
+# TOOL 29: search_packages
+# ---------------------------------------------------------------------------
+# Straightforward keyword search. npm supports "keywords:foo", "author:bar",
+# "scope:@babel" qualifiers in the text, but for this tool we keep it simple:
+# whatever string the caller provides becomes the free-text query.
+@mcp.tool(
+    name="search_packages",
+    description=(
+        "Search the npm Registry by free-text keyword. Returns a ranked list "
+        "of packages with descriptions, scores, and metadata."
+    ),
+)
+async def search_packages(
+    query: str = Field(
+        description="Search query — can be any keyword(s), e.g. 'http client' or 'react hooks'."
+    ),
+    limit: int = Field(
+        default=20,
+        description="Maximum number of results to return (1–50).",
+    ),
+) -> dict:
+    hits = await _npm_search(query, size=limit)
+    return {
+        "query":   query,
+        "count":   len(hits),
+        "results": hits,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 30: get_similar_packages
+# ---------------------------------------------------------------------------
+# "Alternatives to X" — we grab the package's own keywords (the author-set
+# tags) and run them as a search query, then filter out the package itself.
+# Keyword-driven works well in practice because packages in the same space
+# share tags like "validation", "orm", "state-management", etc.
+@mcp.tool(
+    name="get_similar_packages",
+    description=(
+        "Find alternatives to a given npm package. Uses the package's own "
+        "declared keywords to search for packages in the same space."
+    ),
+)
+async def get_similar_packages(
+    package_name: str = Field(description="Exact npm package name to find alternatives for."),
+    limit: int = Field(
+        default=10,
+        description="Maximum number of similar packages to return (1–50).",
+    ),
+) -> dict:
+    # Pull the latest manifest's keywords.
+    manifest = await _fetch_json(
+        f"{NPM_REGISTRY}/{package_name}/latest",
+        not_found_msg=f"npm package '{package_name}' was not found.",
+    )
+    keywords = manifest.get("keywords", []) or []
+    if not keywords:
+        return {
+            "package": package_name,
+            "keywords_used": [],
+            "count": 0,
+            "results": [],
+            "note": "This package declares no keywords — cannot derive similar packages.",
+        }
+
+    # Take the top handful of keywords to keep the query tight and relevant.
+    top_keywords = keywords[:5]
+    query = " ".join(top_keywords)
+
+    # Ask npm for a few extra so we can filter out the source package below.
+    hits = await _npm_search(query, size=limit + 5)
+    filtered = [h for h in hits if h.get("name") != package_name][:limit]
+
+    return {
+        "package":        package_name,
+        "keywords_used":  top_keywords,
+        "count":          len(filtered),
+        "results":        filtered,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 31: get_packages_by_author
+# ---------------------------------------------------------------------------
+# npm's search supports an "author:" qualifier. We pass it through verbatim.
+@mcp.tool(
+    name="get_packages_by_author",
+    description=(
+        "List all npm packages published by a given author (npm username). "
+        "Uses the 'author:' search qualifier."
+    ),
+)
+async def get_packages_by_author(
+    username: str = Field(description="npm username, e.g. 'sindresorhus'."),
+    limit: int = Field(
+        default=50,
+        description="Maximum number of packages to return (1–50).",
+    ),
+) -> dict:
+    # Strip a leading @ if the caller was thinking of scoped-package syntax.
+    clean = username.lstrip("@").strip()
+    hits = await _npm_search(f"author:{clean}", size=limit)
+    return {
+        "author": clean,
+        "count":  len(hits),
+        "packages": hits,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 32: get_organization_packages
+# ---------------------------------------------------------------------------
+# Scoped packages look like @babel/core, @types/node, @vue/reactivity. npm's
+# search supports a "scope:" qualifier that accepts either the raw name or
+# the @-prefixed form. We accept both from the caller for convenience.
+@mcp.tool(
+    name="get_organization_packages",
+    description=(
+        "List all npm packages under a given scope / organization "
+        "(e.g. '@babel' → every @babel/* package)."
+    ),
+)
+async def get_organization_packages(
+    scope: str = Field(
+        description="npm scope/org, e.g. '@babel' or just 'babel'."
+    ),
+    limit: int = Field(
+        default=50,
+        description="Maximum number of packages to return (1–50).",
+    ),
+) -> dict:
+    clean = scope.lstrip("@").strip()
+    prefix = f"@{clean}/"
+
+    # npm's "scope:" qualifier is unreliable for popular orgs. We over-fetch
+    # with the raw "@scope" text query, then strictly filter by prefix —
+    # this guarantees correctness for @babel, @types, @vue, etc.
+    hits = await _npm_search(f"@{clean}", size=min(limit * 2, 50))
+    filtered = [h for h in hits if (h.get("name") or "").startswith(prefix)]
+    filtered = filtered[:limit]
+
+    return {
+        "scope":    f"@{clean}",
+        "count":    len(filtered),
+        "packages": filtered,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------
