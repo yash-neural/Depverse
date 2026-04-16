@@ -16,7 +16,7 @@ The server speaks the MCP `stdio` transport, so it plugs straight into Claude De
 
 ## Features
 
-Depverse exposes **18 tools** grouped into three categories.
+Depverse exposes **23 tools** grouped into four categories.
 
 ### Version tools
 | Tool | What it does |
@@ -47,6 +47,15 @@ Depverse exposes **18 tools** grouped into three categories.
 | `get_dev_dependencies` | `devDependencies` (build/test-time only). |
 | `get_dependency_tree` | Walks the transitive dep graph. Resolves nodes in parallel, de-duplicates, and caps at `max_depth` (default 2, hard-capped at 4). |
 | `check_peer_compatibility` | Given `{peer_name: installed_version}`, reports per-peer `yes` / `no` / `unknown` / `missing` / `missing-optional`. Ships a small semver matcher that handles `^`, `~`, `>=`, `<=`, `>`, `<`, `=`, `*`, `||`. |
+
+### Security & Health tools
+| Tool | What it does |
+| --- | --- |
+| `check_vulnerabilities` | Check a package + version against the [OSV.dev](https://osv.dev) database. Returns all matching advisories (GHSA, CVE) with severity and references. |
+| `get_deprecation_status` | Reports whether a package or specific version is deprecated, plus the deprecation message. Scans all versions when no `version` is given. |
+| `check_maintainer_activity` | Last publish date, publish count, average cadence, and a status label (`active` / `slowing` / `stale` / `abandoned`). |
+| `get_download_stats` | Weekly / monthly download counts from the public npm download API, plus a simple popularity tier. |
+| `check_typosquat_risk` | Flags names suspiciously close to popular packages via Levenshtein distance — catches common supply-chain typos. |
 
 All tools return JSON. Errors become `ValueError`s with a clear message (e.g. `"npm package 'foo' was not found."`), which MCP surfaces to the client as a tool error.
 

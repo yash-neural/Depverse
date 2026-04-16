@@ -906,6 +906,405 @@ async def check_peer_compatibility(
     }
 
 
+# ===========================================================================
+# SECURITY & HEALTH TOOLS
+# ===========================================================================
+# These answer the question "is this package safe and alive?":
+#   check_vulnerabilities     - known CVEs (via OSV database)
+#   get_deprecation_status    - is a package/version deprecated?
+#   check_maintainer_activity - last publish date, abandonment heuristics
+#   get_download_stats        - weekly / monthly download counts
+#   check_typosquat_risk      - flag names that look like common packages
+
+
+# ---------------------------------------------------------------------------
+# Top-50 popular npm packages — used by check_typosquat_risk.
+# Kept short & hand-picked: chosen because typos on these cause real-world
+# supply-chain attacks (e.g. "cross-env" vs "crossenv" historically).
+# ---------------------------------------------------------------------------
+_TOP_PACKAGES = [
+    "react", "react-dom", "lodash", "axios", "express", "vue", "next",
+    "typescript", "webpack", "eslint", "prettier", "jest", "babel",
+    "rollup", "vite", "nestjs", "svelte", "angular", "jquery", "moment",
+    "chalk", "commander", "cross-env", "dotenv", "fs-extra", "glob",
+    "mocha", "node-fetch", "nodemon", "request", "rimraf", "semver",
+    "underscore", "uuid", "yargs", "async", "bluebird", "colors", "debug",
+    "inquirer", "minimist", "ora", "path", "redux", "rxjs", "socket.io",
+    "tslib", "winston", "ws", "zod",
+]
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Tiny iterative Levenshtein — good enough for short package names."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    # Classic DP, O(len(a) * len(b)) — trivial for <~40 char npm names.
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        curr = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            curr[j] = min(
+                curr[j - 1] + 1,      # insertion
+                prev[j] + 1,          # deletion
+                prev[j - 1] + cost,   # substitution
+            )
+        prev = curr
+    return prev[-1]
+
+
+# ---------------------------------------------------------------------------
+# TOOL 19: check_vulnerabilities
+# ---------------------------------------------------------------------------
+# Uses the public OSV.dev API (maintained by Google). Covers the npm ecosystem
+# and aggregates advisories from GitHub, npm audit, and others. No auth needed.
+@mcp.tool(
+    name="check_vulnerabilities",
+    description=(
+        "Check an npm package/version for known vulnerabilities (CVEs) via "
+        "the OSV.dev database. Returns a summary plus per-advisory details."
+    ),
+)
+async def check_vulnerabilities(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version to check. Leave empty for the latest version.",
+    ),
+) -> dict:
+    # Resolve "latest" up front so the OSV query is always version-specific.
+    resolved_version = version
+    if not resolved_version:
+        latest = await _fetch_json(
+            f"{NPM_REGISTRY}/{package_name}/latest",
+            not_found_msg=f"npm package '{package_name}' was not found.",
+        )
+        resolved_version = latest.get("version", "")
+
+    payload = {
+        "package": {"name": package_name, "ecosystem": "npm"},
+        "version": resolved_version,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.post("https://api.osv.dev/v1/query", json=payload)
+    except httpx.RequestError as exc:
+        raise ValueError(f"Could not reach OSV.dev: {exc}") from exc
+
+    if response.status_code >= 400:
+        raise ValueError(
+            f"OSV returned HTTP {response.status_code} for {package_name}@{resolved_version}."
+        )
+
+    data = response.json()
+    vulns = data.get("vulns", []) or []
+
+    # Summarise each advisory — full OSV records are huge, so we trim.
+    advisories = []
+    for v in vulns:
+        severity_list = v.get("severity", []) or []
+        severity = severity_list[0].get("score", "") if severity_list else ""
+        advisories.append({
+            "id": v.get("id"),
+            "summary": v.get("summary", ""),
+            "severity": severity,
+            "aliases": v.get("aliases", []),
+            "published": v.get("published"),
+            "modified": v.get("modified"),
+            "references": [r.get("url") for r in v.get("references", [])[:3]],
+        })
+
+    return {
+        "package": package_name,
+        "version": resolved_version,
+        "vulnerable": bool(advisories),
+        "count": len(advisories),
+        "advisories": advisories,
+        "source": "osv.dev",
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 20: get_deprecation_status
+# ---------------------------------------------------------------------------
+# npm marks deprecations in the manifest's top-level "deprecated" field. For
+# a version-specific check we read the version manifest; for whole-package
+# status we scan all versions and report how many carry a deprecation string.
+@mcp.tool(
+    name="get_deprecation_status",
+    description=(
+        "Check if an npm package or a specific version is deprecated. "
+        "Returns the deprecation message when present."
+    ),
+)
+async def get_deprecation_status(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty to scan ALL versions of the package.",
+    ),
+) -> dict:
+    if version:
+        # Version-specific: single manifest fetch.
+        data = await _fetch_manifest(package_name, version)
+        msg = data.get("deprecated")
+        return {
+            "package": package_name,
+            "version": data.get("version", version),
+            "deprecated": bool(msg),
+            "message": msg or "",
+        }
+
+    # Whole-package scan: fetch the full package doc and inspect every version.
+    pkg = await _fetch_json(
+        f"{NPM_REGISTRY}/{package_name}",
+        not_found_msg=f"npm package '{package_name}' was not found.",
+    )
+    versions = pkg.get("versions", {}) or {}
+    deprecated_versions = {
+        v: manifest.get("deprecated")
+        for v, manifest in versions.items()
+        if manifest.get("deprecated")
+    }
+    latest_tag = pkg.get("dist-tags", {}).get("latest")
+    latest_msg = versions.get(latest_tag, {}).get("deprecated", "") if latest_tag else ""
+
+    return {
+        "package": package_name,
+        "total_versions": len(versions),
+        "deprecated_count": len(deprecated_versions),
+        "latest_version": latest_tag,
+        "latest_deprecated": bool(latest_msg),
+        "latest_message": latest_msg or "",
+        # Only surface a handful to keep the payload small.
+        "sample_deprecated": dict(list(deprecated_versions.items())[:10]),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 21: check_maintainer_activity
+# ---------------------------------------------------------------------------
+# Uses the "time" field from the package document: it maps version -> publish
+# timestamp, plus "created" (first publish) and "modified" (any change).
+# We compute:
+#   - days since last publish
+#   - total publish count
+#   - a heuristic "abandoned" flag (>= 730 days since last publish)
+@mcp.tool(
+    name="check_maintainer_activity",
+    description=(
+        "Assess if an npm package is actively maintained. Reports last publish "
+        "date, total publish count, average cadence, and an abandonment heuristic."
+    ),
+)
+async def check_maintainer_activity(
+    package_name: str = Field(description="Exact npm package name."),
+) -> dict:
+    from datetime import datetime, timezone
+
+    pkg = await _fetch_json(
+        f"{NPM_REGISTRY}/{package_name}",
+        not_found_msg=f"npm package '{package_name}' was not found.",
+    )
+    time = pkg.get("time", {}) or {}
+    created = time.get("created")
+    modified = time.get("modified")
+
+    # Filter out the non-version keys ("created", "modified") to get pure
+    # version -> timestamp pairs.
+    version_times = {k: v for k, v in time.items() if k not in ("created", "modified")}
+    publish_count = len(version_times)
+
+    def _parse(ts: str | None) -> datetime | None:
+        if not ts:
+            return None
+        try:
+            # npm timestamps are ISO-8601 UTC with "Z"; fromisoformat wants "+00:00".
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    now = datetime.now(timezone.utc)
+    last_publish = _parse(modified) or _parse(created)
+    first_publish = _parse(created)
+
+    days_since_last = (
+        (now - last_publish).days if last_publish else None
+    )
+    total_lifetime_days = (
+        (now - first_publish).days if first_publish else None
+    )
+    avg_days_between = (
+        round(total_lifetime_days / publish_count, 1)
+        if total_lifetime_days and publish_count > 1
+        else None
+    )
+
+    # Simple heuristic: 2 years without any publish = likely abandoned.
+    abandoned = days_since_last is not None and days_since_last >= 730
+
+    # Status label for quick skimming.
+    if days_since_last is None:
+        status = "unknown"
+    elif days_since_last < 90:
+        status = "active"
+    elif days_since_last < 365:
+        status = "slowing"
+    elif days_since_last < 730:
+        status = "stale"
+    else:
+        status = "abandoned"
+
+    return {
+        "package": package_name,
+        "created": created,
+        "last_publish": modified,
+        "days_since_last_publish": days_since_last,
+        "publish_count": publish_count,
+        "avg_days_between_publishes": avg_days_between,
+        "maintainers": [m.get("name") for m in pkg.get("maintainers", [])],
+        "status": status,
+        "abandoned": abandoned,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 22: get_download_stats
+# ---------------------------------------------------------------------------
+# npm exposes a separate download-stats API at api.npmjs.org. Periods can be
+# "last-day", "last-week", "last-month", or a custom date range. We expose the
+# three common ones in one response so callers don't have to make 3 tools.
+@mcp.tool(
+    name="get_download_stats",
+    description=(
+        "Get download statistics for an npm package: day / week / month counts "
+        "from the public npm download API."
+    ),
+)
+async def get_download_stats(
+    package_name: str = Field(description="Exact npm package name."),
+) -> dict:
+    base = "https://api.npmjs.org/downloads/point"
+    periods = ["last-day", "last-week", "last-month"]
+
+    async def _fetch_period(period: str) -> dict:
+        try:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                response = await client.get(f"{base}/{period}/{package_name}")
+        except httpx.RequestError as exc:
+            return {"period": period, "error": str(exc)}
+        if response.status_code == 404:
+            return {"period": period, "downloads": 0, "error": "not found"}
+        if response.status_code >= 400:
+            return {"period": period, "error": f"HTTP {response.status_code}"}
+        data = response.json()
+        return {
+            "period": period,
+            "downloads": data.get("downloads", 0),
+            "start": data.get("start"),
+            "end": data.get("end"),
+        }
+
+    # Fan out in parallel — three independent HTTP calls.
+    results = await asyncio.gather(*(_fetch_period(p) for p in periods))
+    by_period = {r["period"]: r for r in results}
+
+    last_month = by_period.get("last-month", {}).get("downloads", 0) or 0
+    # Rough "is this widely used?" heuristic.
+    if last_month >= 1_000_000:
+        popularity = "massive"
+    elif last_month >= 100_000:
+        popularity = "popular"
+    elif last_month >= 10_000:
+        popularity = "moderate"
+    elif last_month >= 1_000:
+        popularity = "niche"
+    else:
+        popularity = "obscure"
+
+    return {
+        "package": package_name,
+        "last_day":   by_period.get("last-day", {}).get("downloads", 0),
+        "last_week":  by_period.get("last-week", {}).get("downloads", 0),
+        "last_month": last_month,
+        "popularity": popularity,
+        "source": "api.npmjs.org",
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 23: check_typosquat_risk
+# ---------------------------------------------------------------------------
+# Typosquatting attacks exploit small misspellings of popular packages. We
+# compute Levenshtein distance against a short list of high-profile names and
+# flag anything within 1-2 edits that ISN'T already that package.
+@mcp.tool(
+    name="check_typosquat_risk",
+    description=(
+        "Check whether an npm package name looks suspiciously close to a "
+        "popular package — a rough typosquat heuristic. Returns risk level "
+        "and the nearest popular matches."
+    ),
+)
+async def check_typosquat_risk(
+    package_name: str = Field(description="Exact npm package name to evaluate."),
+) -> dict:
+    name = package_name.strip().lower()
+
+    # Exact match against our popular list = not a squat, just the real thing.
+    if name in _TOP_PACKAGES:
+        return {
+            "package": package_name,
+            "risk": "none",
+            "reason": "Exact match for a known popular package.",
+            "matches": [],
+        }
+
+    # Compute distances — small list, so O(n * m) is fine.
+    scored = sorted(
+        ((pkg, _levenshtein(name, pkg)) for pkg in _TOP_PACKAGES),
+        key=lambda t: t[1],
+    )[:5]
+
+    closest_name, closest_dist = scored[0]
+
+    # Risk bands — tuned to catch the common attack patterns without crying
+    # wolf on genuinely new names.
+    if closest_dist == 0:
+        risk = "none"
+    elif closest_dist == 1:
+        risk = "high"     # classic 1-char typo (e.g. "exress" for "express")
+    elif closest_dist == 2:
+        risk = "medium"   # plausible typo, worth a warning
+    elif closest_dist <= 4:
+        risk = "low"
+    else:
+        risk = "none"
+
+    reason = (
+        f"Name is {closest_dist} character edits away from '{closest_name}' "
+        "— review before installing."
+        if risk in ("high", "medium")
+        else "No close matches to known popular packages."
+    )
+
+    return {
+        "package": package_name,
+        "risk": risk,
+        "reason": reason,
+        "closest_popular": closest_name,
+        "edit_distance": closest_dist,
+        "matches": [
+            {"name": n, "distance": d} for n, d in scored if d <= 4
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------

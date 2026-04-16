@@ -703,6 +703,7 @@
       <a href="#tools-version" class="sub">Version Tools</a>
       <a href="#tools-package" class="sub">Package Info Tools</a>
       <a href="#tools-dependency" class="sub">Dependency Tools</a>
+      <a href="#tools-security" class="sub">Security &amp; Health Tools</a>
       <a href="#tool-reference" class="sub">Full Reference</a>
     </div>
 
@@ -741,7 +742,7 @@
         <span class="badge accent">v0.1.0</span>
         <span class="badge">Python 3.10+</span>
         <span class="badge">MCP 1.8.0+</span>
-        <span class="badge">18 Tools</span>
+        <span class="badge">23 Tools</span>
       </div>
 
       <h1 class="hero-title">Depverse Documentation</h1>
@@ -753,7 +754,7 @@
 
       <div class="cta-row">
         <a class="btn primary" href="#installation">Install in 2 minutes →</a>
-        <a class="btn secondary" href="#tool-reference">Browse the 18 tools</a>
+        <a class="btn secondary" href="#tool-reference">Browse all 23 tools</a>
         <a class="btn secondary" href="https://github.com/yash-neural/Depverse" target="_blank" rel="noopener">View on GitHub</a>
       </div>
 
@@ -844,7 +845,7 @@
       <h3>Project layout</h3>
 <pre><span class="cmt"># repo root</span>
 Depverse/
-├── mcp_server.py       <span class="cmt"># The MCP server — all 18 tools</span>
+├── mcp_server.py       <span class="cmt"># The MCP server — all 23 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
 ├── main.py             <span class="cmt"># Entrypoint for the CLI chat</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
@@ -924,7 +925,7 @@ USE_UV=<span class="str">"1"</span>        <span class="cmt"># set to 1 so main.
     <section class="doc-section" id="register-claude-code">
       <h2>Register with Claude Code</h2>
       <p>
-        Claude Code itself is an MCP client. Once registered, Depverse's 18 tools are available in every Claude Code
+        Claude Code itself is an MCP client. Once registered, Depverse's 23 tools are available in every Claude Code
         conversation — no API key needed on your side, no custom CLI.
       </p>
 
@@ -946,7 +947,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       <p>Restart Claude Code, then run:</p>
 <pre>/mcp
 
-<span class="cmt"># should list: Depverse   → 18 tools</span></pre>
+<span class="cmt"># should list: Depverse   → 23 tools</span></pre>
 
       <h3>Other useful commands</h3>
       <div class="cards-grid">
@@ -989,7 +990,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
     <!-- ========== TOOLS ========== -->
     <section class="doc-section" id="tools-version">
       <h2>Tools</h2>
-      <p>Depverse exposes <strong>18 tools</strong> in three groups. All return JSON; errors surface as typed MCP tool errors.</p>
+      <p>Depverse exposes <strong>23 tools</strong> in four groups. All return JSON; errors surface as typed MCP tool errors.</p>
 
       <h3 id="tools-version-h">Version tools <span style="color: var(--muted); font-weight: 400;">(6)</span></h3>
       <p>These answer <em>"which version?"</em> questions.</p>
@@ -1105,6 +1106,42 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       </div>
     </section>
 
+    <section class="doc-section" id="tools-security">
+      <h3>Security &amp; Health tools <span style="color: var(--muted); font-weight: 400;">(5)</span></h3>
+      <p>These answer <em>"is this package safe and alive?"</em> questions.</p>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-name">check_vulnerabilities</div>
+          <div class="card-title">Known CVEs</div>
+          <div class="card-desc">Queries <a href="https://osv.dev" target="_blank" rel="noopener">OSV.dev</a> for all advisories (GHSA, CVE) affecting a package + version.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_deprecation_status</div>
+          <div class="card-title">Deprecation Check</div>
+          <div class="card-desc">Is a specific version — or the package as a whole — deprecated? Returns the deprecation message.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">check_maintainer_activity</div>
+          <div class="card-title">Is it Abandoned?</div>
+          <div class="card-desc">Last publish date, average cadence, and a status label: <code>active</code> / <code>slowing</code> / <code>stale</code> / <code>abandoned</code>.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_download_stats</div>
+          <div class="card-title">Downloads</div>
+          <div class="card-desc">Day / week / month download counts from the public npm API, plus a popularity tier.</div>
+        </div>
+        <div class="card" style="grid-column: span 2;">
+          <div class="card-name">check_typosquat_risk</div>
+          <div class="card-title">Supply-Chain Typo Check</div>
+          <div class="card-desc">
+            Flags names suspiciously close to popular packages via Levenshtein distance.
+            <code>exress</code> → <strong>high</strong> (1 edit from <code>express</code>);
+            <code>lodaash</code> → <strong>medium</strong>; unrelated names → <strong>none</strong>.
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ========== FULL REFERENCE TABLE ========== -->
     <section class="doc-section" id="tool-reference">
       <h2>Full tool reference</h2>
@@ -1143,6 +1180,13 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
           <tr><td><code>get_dev_dependencies</code></td><td><code>package_name, version?</code></td><td><code>GET /{pkg}/{version|latest}</code></td><td><code>{ count, dev_dependencies{} }</code></td></tr>
           <tr><td><code>get_dependency_tree</code></td><td><code>package_name, version?, max_depth?</code></td><td>Recursive fetch (asyncio.gather)</td><td>Nested tree with dedup caching</td></tr>
           <tr><td><code>check_peer_compatibility</code></td><td><code>package_name, version?, installed{}</code></td><td>Manifest + built-in semver matcher</td><td><code>{ all_ok, report[] }</code></td></tr>
+
+          <tr class="group-row"><td colspan="4">Security &amp; Health Tools</td></tr>
+          <tr><td><code>check_vulnerabilities</code></td><td><code>package_name, version?</code></td><td><code>POST api.osv.dev/v1/query</code></td><td><code>{ vulnerable, count, advisories[] }</code></td></tr>
+          <tr><td><code>get_deprecation_status</code></td><td><code>package_name, version?</code></td><td><code>GET /{pkg}</code> or <code>/{pkg}/{version}</code></td><td><code>{ deprecated, message, deprecated_count }</code></td></tr>
+          <tr><td><code>check_maintainer_activity</code></td><td><code>package_name</code></td><td><code>GET /{pkg}</code> (reads <code>time</code>)</td><td><code>{ status, days_since_last_publish, abandoned }</code></td></tr>
+          <tr><td><code>get_download_stats</code></td><td><code>package_name</code></td><td><code>api.npmjs.org/downloads/point/*</code></td><td><code>{ last_day, last_week, last_month, popularity }</code></td></tr>
+          <tr><td><code>check_typosquat_risk</code></td><td><code>package_name</code></td><td>Local Levenshtein vs. top-50 list</td><td><code>{ risk, closest_popular, edit_distance }</code></td></tr>
         </tbody>
       </table>
 
