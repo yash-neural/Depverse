@@ -818,9 +818,10 @@
     <section class="doc-section" id="architecture">
       <h2>Architecture</h2>
       <p>
-        Depverse is a Python MCP server built on <code>FastMCP</code>. The MCP client (Claude Code, Claude Desktop,
-        or the included CLI chat) spawns it as a subprocess and communicates over <strong>stdio</strong> using JSON-RPC.
-        Depverse in turn talks to the public npm Registry over HTTPS via <code>httpx</code>.
+        Depverse is a Python MCP server built on <code>FastMCP</code>. An MCP client (Claude Code, Claude Desktop,
+        Cursor, Cline, Windsurf, Copilot) spawns it as a subprocess and communicates over <strong>stdio</strong> using
+        JSON-RPC. Depverse in turn talks to the public npm Registry, OSV.dev, and the npm download API over HTTPS via
+        <code>httpx</code>.
       </p>
 
       <div class="arch-diagram">
@@ -848,17 +849,20 @@
 Depverse/
 ├── mcp_server.py       <span class="cmt"># The MCP server — all 39 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
-├── main.py             <span class="cmt"># Entrypoint for the CLI chat</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
-├── core/
-│   ├── chat.py         <span class="cmt"># Tool-using chat loop</span>
-│   ├── cli_chat.py     <span class="cmt"># CLI chat with @docs + /commands</span>
-│   ├── cli.py          <span class="cmt"># prompt-toolkit UI</span>
-│   ├── claude.py       <span class="cmt"># Anthropic API wrapper</span>
-│   └── tools.py        <span class="cmt"># MCP ↔ Anthropic tool bridge</span>
 ├── pyproject.toml
+├── uv.lock
 ├── .mcp.json           <span class="cmt"># Example MCP config for clients</span>
-└── docs/               <span class="cmt"># This documentation site</span></pre>
+├── docs/               <span class="cmt"># This documentation site</span>
+│
+│   <span class="cmt"># --- Optional: bundled CLI chat (ignore if using Claude Code / Cursor / etc.) ---</span>
+├── main.py             <span class="cmt"># Entrypoint for the optional CLI chat</span>
+└── core/
+    ├── chat.py         <span class="cmt"># Tool-using chat loop</span>
+    ├── cli_chat.py     <span class="cmt"># CLI chat with @docs + /commands</span>
+    ├── cli.py          <span class="cmt"># prompt-toolkit UI</span>
+    ├── claude.py       <span class="cmt"># Anthropic API wrapper</span>
+    └── tools.py        <span class="cmt"># MCP ↔ Anthropic tool bridge</span></pre>
     </section>
 
     <!-- ========== INSTALLATION ========== -->

@@ -1,16 +1,17 @@
 # Depverse
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-View%20Presentation-C08763?style=for-the-badge&logo=github)](https://yash-neural.github.io/Depverse/)
+[![Docs](https://img.shields.io/badge/Docs-View%20Full%20Docs-C08763?style=for-the-badge&logo=github)](https://yash-neural.github.io/Depverse/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-1.8.0%2B-1a1a1a?style=flat-square)](https://modelcontextprotocol.io)
 [![npm Registry](https://img.shields.io/badge/npm-registry-CB3837?style=flat-square&logo=npm&logoColor=white)](https://registry.npmjs.org)
+[![Tools](https://img.shields.io/badge/Tools-39-C08763?style=flat-square)](https://yash-neural.github.io/Depverse/#tool-reference)
 
-> **🎬 [View the live presentation deck →](https://yash-neural.github.io/Depverse/)**
-> A three-part walkthrough of MCP, building an MCP server, and the Depverse npm tools.
+> **📖 [Full documentation →](https://yash-neural.github.io/Depverse/)**
+> Install, tool reference, and setup guides for Claude Code, Claude Desktop, Cursor, Cline, Windsurf, and Copilot.
 
-**Depverse** is an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server that exposes the public [npm Registry](https://registry.npmjs.org) as a set of structured tools Claude can call. It ships with a CLI chat client so you can talk to Claude in your terminal and let it inspect any npm package — versions, dependencies, changelogs, peer compatibility, bundle size, and more — without ever leaving the shell.
+**Depverse** is an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server that exposes the public [npm Registry](https://registry.npmjs.org) as 39 structured tools that Claude (or any MCP-aware client) can call — versions, dependencies, changelogs, security advisories, download trends, and more — without ever leaving the editor.
 
-The server speaks the MCP `stdio` transport, so it plugs straight into Claude Desktop, Claude Code, or any other MCP-aware client.
+The server speaks MCP's `stdio` transport, so it plugs straight into Claude Code, Claude Desktop, Cursor, Cline, Windsurf, and Copilot Chat. **No API key required** — the client brings its own auth.
 
 ---
 
@@ -93,20 +94,22 @@ All tools return JSON. Errors become `ValueError`s with a clear message (e.g. `"
 
 ```
 Depverse/
-├── mcp_server.py       # The MCP server — all 18 npm tools live here
+├── mcp_server.py       # The MCP server — all 39 npm tools live here
 ├── mcp_client.py       # Thin MCP client wrapper (stdio transport)
-├── main.py             # Entrypoint for the CLI chat
 ├── test_npm_tool.py    # Manual end-to-end test for the server
-├── core/
-│   ├── chat.py         # Tool-using chat loop
-│   ├── cli_chat.py     # CLI-flavoured chat (supports @docs and /commands)
-│   ├── cli.py          # prompt-toolkit UI (autocompletion, history, key bindings)
-│   ├── claude.py       # Anthropic API wrapper
-│   └── tools.py        # Bridges MCP tool calls into Anthropic tool_use blocks
 ├── pyproject.toml
 ├── uv.lock
 ├── .mcp.json           # Example MCP server config for external clients
-└── Presentation/       # Slides / HTML explainers for the project
+├── docs/               # Documentation site (GitHub Pages)
+│
+│   # --- Optional: bundled CLI chat (main.py) ---
+├── main.py             # Entrypoint for the optional CLI chat
+└── core/
+    ├── chat.py         # Tool-using chat loop
+    ├── cli_chat.py     # CLI-flavoured chat (supports @docs and /commands)
+    ├── cli.py          # prompt-toolkit UI (autocompletion, history, key bindings)
+    ├── claude.py       # Anthropic API wrapper
+    └── tools.py        # Bridges MCP tool calls into Anthropic tool_use blocks
 ```
 
 ---
@@ -114,76 +117,35 @@ Depverse/
 ## Prerequisites
 
 - Python **3.10+**
-- An [Anthropic API key](https://console.anthropic.com/)
-- Optional but recommended: [uv](https://github.com/astral-sh/uv) for fast dependency management
-- Network access to `registry.npmjs.org` and (for changelogs) `api.github.com` / `raw.githubusercontent.com`
+- [uv](https://github.com/astral-sh/uv) (recommended) or plain `pip`
+- Network access to `registry.npmjs.org`, `api.osv.dev`, `api.npmjs.org` and (for changelogs) `api.github.com` / `raw.githubusercontent.com`
+
+> **No Anthropic API key required.** Claude Code (or any MCP client) brings its own auth. A key is only needed if you also want to use the optional bundled CLI chat (`main.py`).
 
 ---
 
-## Setup
-
-### 1. Configure environment variables
-
-Create a `.env` file in the project root:
-
-```env
-ANTHROPIC_API_KEY="sk-ant-..."
-CLAUDE_MODEL="claude-sonnet-4-5"
-# Optional: set to 1 to launch the MCP server via `uv run` instead of `python`
-USE_UV=1
-```
-
-### 2. Install dependencies
-
-**Option A — with `uv` (recommended)**
+## Install
 
 ```bash
-pip install uv                # if you don't have it yet
+git clone https://github.com/yash-neural/Depverse.git
+cd Depverse
 uv venv
 source .venv/bin/activate     # Windows: .venv\Scripts\activate
 uv pip install -e .
 ```
 
-**Option B — with plain `pip`**
+Or without `uv`:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate     # Windows: .venv\Scripts\activate
-pip install anthropic httpx python-dotenv prompt-toolkit "mcp[cli]>=1.8.0"
+source .venv/bin/activate
+pip install -e .
 ```
 
----
-
-## Running the CLI chat
+Verify the server starts cleanly:
 
 ```bash
-uv run main.py
-# or, without uv:
-python main.py
-```
-
-You'll get a prompt:
-
-```
-> what versions of react are available?
-> compare the peer deps of @tanstack/react-query 5.0.0 vs 4.36.0
-> is express@5.0.0 published yet?
-```
-
-Claude automatically picks the right Depverse tool, calls it, and summarises the result.
-
-### CLI features (from `prompt-toolkit`)
-- **Tab-complete** for `/`-commands (slash commands exposed by the server as prompts).
-- **`@`-mentions** for any doc resources the connected server exposes (Depverse itself doesn't expose docs, but you can connect additional servers — see below).
-- **History** via ↑ / ↓ arrow keys.
-- **Inline suggestions** when you start typing `/command `.
-
-### Connecting extra MCP servers
-
-`main.py` accepts any number of extra server scripts as positional arguments; each one is spawned over stdio and its tools become available alongside Depverse's:
-
-```bash
-uv run main.py path/to/other_server.py path/to/yet_another.py
+uv run test_npm_tool.py   # spawns the server, lists tools, calls each once
 ```
 
 ---
@@ -230,12 +192,11 @@ It prints each tool call and the (truncated) JSON response, so you can eyeball t
 
 ## How it works
 
-1. **`mcp_server.py`** registers every tool with `FastMCP` (from the MCP Python SDK). Each tool is an `async` function that talks to the npm Registry over `httpx`, with a shared `_fetch_json` helper that enforces a 10 s timeout and consistent 404 / error messaging.
-2. **`mcp_client.py`** wraps `mcp.ClientSession` with a small context-managed class. It exposes `list_tools`, `call_tool`, `list_prompts`, `get_prompt`, and `read_resource`.
-3. **`core/chat.py`** drives the tool-use loop: send the message + tool definitions to Claude, execute any `tool_use` blocks via `ToolManager`, append the results, repeat until Claude stops calling tools.
-4. **`core/cli.py`** wraps all of the above in a `prompt-toolkit` UI.
+1. **`mcp_server.py`** registers every tool with `FastMCP` (from the MCP Python SDK). Each tool is an `async` function that talks to the npm Registry, OSV.dev, or the npm download API over `httpx`, with a shared `_fetch_json` helper that enforces a 10 s timeout and consistent 404 / error messaging.
+2. **`mcp_client.py`** wraps `mcp.ClientSession` with a small context-managed class — only used by `test_npm_tool.py` and the optional CLI chat.
+3. The MCP client (Claude Code, Claude Desktop, Cursor, etc.) spawns `mcp_server.py` as a subprocess over stdio. JSON-RPC frames flow in both directions; tool calls return structured JSON the model can reason about.
 
-The design cleanly separates the MCP side (server + client transport) from the chat side (Claude wrapper + CLI), so each piece can be reused on its own — you can use the server without the chat, or point the chat at completely different MCP servers.
+The MCP server is the whole point — everything in `core/` is scaffolding for the **optional** bundled CLI chat, which you can ignore if you're just plugging Depverse into Claude Code.
 
 ---
 
