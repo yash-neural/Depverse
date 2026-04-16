@@ -1932,26 +1932,98 @@ $ claude mcp add your-server <span class="kw">--scope</span> project \
 </div>
 
 <script>
-  // Scrollspy — highlight the sidebar link for the section currently in view
-  const sections = document.querySelectorAll('section.doc-section');
-  const sidebarLinks = document.querySelectorAll('.sidebar a');
+  // Scrollspy — highlight the sidebar link for the section currently in view.
+  //
+  // Two-pass approach so *both* a parent link (e.g. "Register with an MCP Client")
+  // and its child sub-link (e.g. "Cursor") can stay highlighted together.
+  //
+  // Uses IntersectionObserver + a manual fallback for the "closest section
+  // above the viewport top" calculation, which is the most reliable way to
+  // pick "the section the user is currently reading" on a long page.
 
-  function setActive() {
-    const scrollPos = window.scrollY + 120;
-    let currentId = sections[0]?.id;
-    for (const section of sections) {
-      if (section.offsetTop <= scrollPos) {
-        currentId = section.id;
+  const sections = Array.from(document.querySelectorAll('section.doc-section'));
+  const sidebarLinks = Array.from(document.querySelectorAll('.sidebar a'));
+  const HEADER_OFFSET = 80; // fixed header (64px) + small buffer
+
+  // Map of section-id -> sidebar link(s) that target it.
+  const linksById = new Map();
+  sidebarLinks.forEach(link => {
+    const id = link.getAttribute('href').slice(1);
+    if (!linksById.has(id)) linksById.set(id, []);
+    linksById.get(id).push(link);
+  });
+
+  // Build a reverse lookup: for any section id, what sidebar IDs should ALSO
+  // be lit up? (e.g. when "register-cursor" is active, also light up "register")
+  // We infer this from matching prefixes already used in the sidebar structure.
+  const parentIdOf = new Map();
+  sections.forEach(s => {
+    const id = s.id;
+    // If there's another sidebar link whose id is a strict prefix of mine,
+    // treat it as my parent.
+    const parents = [];
+    for (const parentId of linksById.keys()) {
+      if (parentId !== id && id.startsWith(parentId + '-')) {
+        parents.push(parentId);
       }
     }
-    sidebarLinks.forEach(link => {
-      const href = link.getAttribute('href');
-      link.classList.toggle('active', href === `#${currentId}`);
-    });
+    if (parents.length) {
+      // Pick the longest-matching prefix — that's the nearest parent.
+      parents.sort((a, b) => b.length - a.length);
+      parentIdOf.set(id, parents[0]);
+    }
+  });
+
+  let currentId = sections[0]?.id;
+
+  function applyHighlight(id) {
+    if (!id) return;
+    currentId = id;
+    // Clear all.
+    sidebarLinks.forEach(l => l.classList.remove('active'));
+    // Highlight the active section's own link(s).
+    (linksById.get(id) || []).forEach(l => l.classList.add('active'));
+    // Also highlight the nearest parent's link(s), if any.
+    const parent = parentIdOf.get(id);
+    if (parent) {
+      (linksById.get(parent) || []).forEach(l => l.classList.add('active'));
+    }
+    // Scroll the active link into view if it's off-screen inside the sidebar.
+    const activeLink = document.querySelector('.sidebar a.active');
+    if (activeLink) {
+      const r = activeLink.getBoundingClientRect();
+      const inView = r.top >= 0 && r.bottom <= window.innerHeight;
+      if (!inView) activeLink.scrollIntoView({ block: 'nearest' });
+    }
   }
 
-  setActive();
-  window.addEventListener('scroll', setActive, { passive: true });
+  // Manual "which section is currently closest to the top" — most reliable
+  // on long docs pages, where IntersectionObserver alone can miss.
+  function recompute() {
+    const threshold = window.scrollY + HEADER_OFFSET + 40;
+    let id = sections[0]?.id;
+    for (const s of sections) {
+      if (s.getBoundingClientRect().top + window.scrollY <= threshold) {
+        id = s.id;
+      } else {
+        break;
+      }
+    }
+    applyHighlight(id);
+  }
+
+  recompute();
+  window.addEventListener('scroll', recompute, { passive: true });
+  window.addEventListener('resize', recompute, { passive: true });
+
+  // When the user clicks a link, apply highlight immediately (don't wait
+  // for the smooth scroll to finish).
+  sidebarLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      const id = link.getAttribute('href').slice(1);
+      applyHighlight(id);
+    });
+  });
 </script>
 
 </body>
