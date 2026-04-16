@@ -869,9 +869,13 @@ Depverse/
       <p>Depverse runs locally as a Python process. You'll need:</p>
       <ul>
         <li><strong>Python 3.10+</strong></li>
-        <li><strong>An Anthropic API key</strong> (<a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>)</li>
         <li><strong><a href="https://github.com/astral-sh/uv" target="_blank" rel="noopener">uv</a></strong> (recommended) or plain <code>pip</code></li>
       </ul>
+      <div class="callout info">
+        <strong>No Anthropic API key required</strong> to run the MCP server — Claude Code (or any MCP client)
+        brings its own auth. A key is only needed if you also want to use the bundled
+        <a href="#run-cli">CLI chat</a>.
+      </div>
 
       <div class="steps">
         <div class="step">
@@ -912,13 +916,20 @@ uv pip install -e .</pre>
         </div>
       </div>
 
-      <h3 id="configuration">Configuration — <code>.env</code></h3>
-      <p>Create a <code>.env</code> file in the project root:</p>
-<pre><span class="cmt"># .env</span>
+      <h3 id="configuration">Configuration <span style="color: var(--muted); font-size: 16px; font-weight: 400;">— optional, CLI chat only</span></h3>
+      <p>
+        The MCP server itself needs <strong>no configuration</strong> — it has no secrets, no tokens, no state.
+        Just register it with Claude Code (<a href="#register-claude-code">below</a>) and you're done.
+      </p>
+      <p>
+        A <code>.env</code> file is only required if you want to use the bundled <a href="#run-cli">CLI chat</a>
+        (<code>main.py</code>), which calls the Anthropic API directly. In that case, create <code>.env</code>
+        in the project root:
+      </p>
+<pre><span class="cmt"># .env — only needed for main.py (CLI chat)</span>
 ANTHROPIC_API_KEY=<span class="str">"sk-ant-..."</span>
 CLAUDE_MODEL=<span class="str">"claude-sonnet-4-5"</span>
-USE_UV=<span class="str">"1"</span>        <span class="cmt"># set to 1 so main.py spawns the server with `uv run`</span></pre>
-
+USE_UV=<span class="str">"1"</span>        <span class="cmt"># spawns the server with `uv run`</span></pre>
       <div class="callout warn">
         <strong>Do not commit your <code>.env</code>.</strong> A <code>.gitignore</code> entry is included by default.
       </div>
