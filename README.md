@@ -17,7 +17,7 @@ The server speaks MCP's `stdio` transport, so it plugs straight into Claude Code
 
 ## Features
 
-Depverse exposes **39 tools** grouped into seven categories.
+Depverse exposes **44 tools** grouped into eight categories.
 
 ### Version tools
 | Tool | What it does |
@@ -85,6 +85,15 @@ Depverse exposes **39 tools** grouped into seven categories.
 | `validate_package_json` | Checks dep ranges in a `package.json` resolve to at least one published version. Flags typos like `lodash@999.0.0`. |
 | `generate_install_command` | Builds install commands for npm / pnpm / yarn / bun with `--dev` and `--exact` flag dialects handled per-manager. |
 | `resolve_cdn_url` | Pinned jsDelivr, unpkg, and esm.sh URLs for a package + optional file path. Auto-resolves "latest" when no version is given. |
+
+### Bundle Size tools *(via bundlephobia.com)*
+| Tool | What it does |
+| --- | --- |
+| `get_bundle_size` | Minified + gzipped size of a package (with a specific or latest version), plus dependency count and ESM availability. |
+| `get_bundle_size_history` | Size history across recent versions. Reports `growing` / `stable` / `shrinking` trend and percent delta. |
+| `check_treeshakeable` | Returns `true` when the package ships ES modules AND declares `"sideEffects": false` — the two conditions needed for bundler tree-shaking. |
+| `compare_bundle_sizes` | Parallel size lookup for 2–10 packages. Ranks by gzipped size (lightest first). |
+| `get_bundle_size_impact` | Framed for PR-review: "adding X will add Y KB gzipped with Z transitive deps" — plus an `impact` tier (tiny / small / moderate / heavy). |
 
 All tools return JSON. Errors become `ValueError`s with a clear message (e.g. `"npm package 'foo' was not found."`), which MCP surfaces to the client as a tool error.
 

@@ -712,6 +712,7 @@
       <a href="#tools-compat" class="sub">Compatibility &amp; Update Tools</a>
       <a href="#tools-search" class="sub">Search &amp; Discovery Tools</a>
       <a href="#tools-utility" class="sub">Utility Tools</a>
+      <a href="#tools-bundle" class="sub">Bundle Size Tools</a>
       <a href="#tool-reference" class="sub">Full Reference</a>
     </div>
 
@@ -750,7 +751,7 @@
         <span class="badge accent">v0.1.0</span>
         <span class="badge">Python 3.10+</span>
         <span class="badge">MCP 1.8.0+</span>
-        <span class="badge">39 Tools</span>
+        <span class="badge">44 Tools</span>
       </div>
 
       <h1 class="hero-title">Depverse Documentation</h1>
@@ -762,7 +763,7 @@
 
       <div class="cta-row">
         <a class="btn primary" href="#installation">Install in 2 minutes →</a>
-        <a class="btn secondary" href="#tool-reference">Browse all 39 tools →</a>
+        <a class="btn secondary" href="#tool-reference">Browse all 44 tools →</a>
         <a class="btn secondary" href="https://github.com/yash-neural/Depverse" target="_blank" rel="noopener">View on GitHub</a>
       </div>
 
@@ -847,7 +848,7 @@
       <h3>Project layout</h3>
 <pre><span class="cmt"># repo root</span>
 Depverse/
-├── mcp_server.py       <span class="cmt"># The MCP server — all 39 tools</span>
+├── mcp_server.py       <span class="cmt"># The MCP server — all 44 tools</span>
 ├── mcp_client.py       <span class="cmt"># Thin MCP client wrapper (stdio)</span>
 ├── test_npm_tool.py    <span class="cmt"># Manual end-to-end test</span>
 ├── pyproject.toml
@@ -923,7 +924,7 @@ uv pip install -e .</pre>
       <h2>Register with an MCP Client</h2>
       <p>
         Depverse is a <strong>standard MCP server</strong>. Any MCP-aware client can launch it over stdio and use its
-        39 tools. Pick your client below for a copy-paste config.
+        44 tools. Pick your client below for a copy-paste config.
       </p>
 
       <div class="callout info">
@@ -950,7 +951,7 @@ claude mcp add Depverse <span class="kw">--scope</span> project \
       <h4>Verify</h4>
 <pre><span class="cmt"># restart Claude Code, then:</span>
 /mcp
-<span class="cmt"># should list: Depverse → 39 tools</span></pre>
+<span class="cmt"># should list: Depverse → 44 tools</span></pre>
 
       <h4>Other Claude Code commands</h4>
       <div class="cards-grid">
@@ -1134,7 +1135,7 @@ python
     <!-- ========== TOOLS ========== -->
     <section class="doc-section" id="tools-version">
       <h2>Tools</h2>
-      <p>Depverse exposes <strong>39 tools</strong> in seven groups. All return JSON; errors surface as typed MCP tool errors.</p>
+      <p>Depverse exposes <strong>44 tools</strong> in eight groups. All return JSON; errors surface as typed MCP tool errors.</p>
 
       <h3 id="tools-version-h">Version tools <span style="color: var(--muted); font-weight: 400;">(6)</span></h3>
       <p>These answer <em>"which version?"</em> questions.</p>
@@ -1390,6 +1391,41 @@ python
       </div>
     </section>
 
+    <section class="doc-section" id="tools-bundle">
+      <h3>Bundle Size tools <span style="color: var(--muted); font-weight: 400;">(5)</span></h3>
+      <p>These answer <em>"how heavy is this on the client?"</em> — powered by <a href="https://bundlephobia.com" target="_blank" rel="noopener">bundlephobia.com</a>.</p>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-name">get_bundle_size</div>
+          <div class="card-title">Minified + Gzipped Size</div>
+          <div class="card-desc">Raw and gzipped bytes for a package (optionally pinned to a version), with transitive dependency count.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">get_bundle_size_history</div>
+          <div class="card-title">Size Over Time</div>
+          <div class="card-desc">Size across recent versions. Reports <code>growing</code> / <code>stable</code> / <code>shrinking</code> trend and percent delta.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">check_treeshakeable</div>
+          <div class="card-title">Tree-Shakeability</div>
+          <div class="card-desc">Returns <code>true</code> only when the package ships ES modules <strong>and</strong> declares <code>"sideEffects": false</code>.</div>
+        </div>
+        <div class="card">
+          <div class="card-name">compare_bundle_sizes</div>
+          <div class="card-title">Lightweight-first Ranking</div>
+          <div class="card-desc">Parallel size lookup for 2–10 packages, ranked by gzipped size. Classic <code>axios vs ky vs got</code> question.</div>
+        </div>
+        <div class="card" style="grid-column: span 2;">
+          <div class="card-name">get_bundle_size_impact</div>
+          <div class="card-title">PR-Review Summary</div>
+          <div class="card-desc">
+            Returns sizes + a one-line summary ready to paste into a PR:
+            <em>"Adding date-fns@4.1.0 will add ~17.5 KB gzipped (70.7 KB minified) to your bundle, pulling in 0 transitive dependencies. Impact: small."</em>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ========== FULL REFERENCE TABLE ========== -->
     <section class="doc-section" id="tool-reference">
       <h2>Full tool reference</h2>
@@ -1457,6 +1493,13 @@ python
           <tr><td><code>validate_package_json</code></td><td><code>package_json, dependencies{}</code></td><td>Per-dep <code>GET /{pkg}</code> + matcher</td><td><code>{ valid, summary, results[] }</code></td></tr>
           <tr><td><code>generate_install_command</code></td><td><code>packages[], dev?, exact?</code></td><td>Local (no HTTP)</td><td><code>{ commands: { npm, pnpm, yarn, bun } }</code></td></tr>
           <tr><td><code>resolve_cdn_url</code></td><td><code>package_name, version?, file?</code></td><td><code>GET /{pkg}/latest</code> (only if no version)</td><td><code>{ jsdelivr, unpkg, esm_sh }</code></td></tr>
+
+          <tr class="group-row"><td colspan="4">Bundle Size Tools <em>(bundlephobia.com)</em></td></tr>
+          <tr><td><code>get_bundle_size</code></td><td><code>package_name, version?</code></td><td><code>GET bundlephobia.com/api/size</code></td><td><code>{ size_bytes, gzip_bytes, dependency_count, has_js_module }</code></td></tr>
+          <tr><td><code>get_bundle_size_history</code></td><td><code>package_name, limit?</code></td><td><code>GET bundlephobia.com/api/package-history</code></td><td><code>{ trend, delta_percent, history[] }</code></td></tr>
+          <tr><td><code>check_treeshakeable</code></td><td><code>package_name, version?</code></td><td><code>GET bundlephobia.com/api/size</code></td><td><code>{ treeshakeable, has_esm, side_effects_declared_none, reason }</code></td></tr>
+          <tr><td><code>compare_bundle_sizes</code></td><td><code>packages[]</code></td><td>Parallel bundlephobia fetches</td><td><code>{ lightest, ranking[] }</code></td></tr>
+          <tr><td><code>get_bundle_size_impact</code></td><td><code>package_name, version?</code></td><td><code>GET bundlephobia.com/api/size</code></td><td><code>{ impact, summary, size_bytes, gzip_bytes }</code></td></tr>
         </tbody>
       </table>
 

@@ -2401,6 +2401,373 @@ async def get_download_by_version(
     }
 
 
+# ===========================================================================
+# BUNDLE SIZE TOOLS
+# ===========================================================================
+# Uses bundlephobia.com's free public API to answer "how heavy is this on
+# the client?" questions. bundlephobia's numbers are the de-facto standard
+# for client-side JS bundle reasoning — every major front-end tool references
+# them (create-react-app, nextjs, rollup, etc.).
+#
+#   get_bundle_size           - size + gzip for a pkg[@version]
+#   get_bundle_size_history   - size across many versions
+#   check_treeshakeable       - does the pkg ship ES modules + no side-effects?
+#   compare_bundle_sizes      - side-by-side size ranking
+#   get_bundle_size_impact    - framed as "what does this cost my bundle?"
+
+BUNDLEPHOBIA = "https://bundlephobia.com/api"
+# bundlephobia can be slow — give it its own longer timeout. The site builds
+# the package on-demand if it hasn't been seen before, which takes 5-10s.
+BUNDLEPHOBIA_TIMEOUT = 20.0
+
+
+async def _fetch_bundle_size(package_name: str, version: str = "") -> dict:
+    """Shared helper: fetch bundle size from bundlephobia."""
+    pkg = f"{package_name}@{version}" if version else package_name
+    url = f"{BUNDLEPHOBIA}/size?package={pkg}"
+    try:
+        async with httpx.AsyncClient(timeout=BUNDLEPHOBIA_TIMEOUT) as client:
+            response = await client.get(url)
+    except httpx.RequestError as exc:
+        raise ValueError(f"Could not reach bundlephobia: {exc}") from exc
+
+    if response.status_code == 404:
+        raise ValueError(
+            f"bundlephobia has no data for '{pkg}' (unpublished or too new?)."
+        )
+    if response.status_code >= 400:
+        # bundlephobia returns a JSON error body when it can't build the pkg.
+        try:
+            err = response.json().get("error", {}).get("message", "")
+        except Exception:
+            err = ""
+        raise ValueError(
+            f"bundlephobia returned HTTP {response.status_code} for '{pkg}'"
+            + (f": {err}" if err else ".")
+        )
+
+    return response.json()
+
+
+def _format_bytes(n: int | None) -> str:
+    """Turn raw bytes into something a human can skim."""
+    if n is None:
+        return "unknown"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.2f} MB"
+    if n >= 1_000:
+        return f"{n / 1_000:.2f} KB"
+    return f"{n} B"
+
+
+# ---------------------------------------------------------------------------
+# TOOL 40: get_bundle_size
+# ---------------------------------------------------------------------------
+# The bread-and-butter size check. Returns raw size, gzipped size, and the
+# direct dependency count — what every front-end reviewer wants to see
+# before approving a new import.
+@mcp.tool(
+    name="get_bundle_size",
+    description=(
+        "Get the minified and gzipped bundle size of an npm package via "
+        "bundlephobia. Returns human-readable sizes plus dependency count."
+    ),
+)
+async def get_bundle_size(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest published version.",
+    ),
+) -> dict:
+    data = await _fetch_bundle_size(package_name, version)
+    return {
+        "package":         data.get("name"),
+        "version":         data.get("version"),
+        "size_bytes":      data.get("size"),
+        "size_human":      _format_bytes(data.get("size")),
+        "gzip_bytes":      data.get("gzip"),
+        "gzip_human":      _format_bytes(data.get("gzip")),
+        "dependency_count": data.get("dependencyCount"),
+        "is_scoped":       data.get("scoped", False),
+        "has_side_effects": data.get("hasSideEffects", True),
+        "has_js_module":   bool(data.get("hasJSModule")),
+        "description":     data.get("description", ""),
+        "repository":      data.get("repository", ""),
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 41: get_bundle_size_history
+# ---------------------------------------------------------------------------
+# bundlephobia's /package-history returns size for many versions in one call.
+# Useful for "has this package gotten heavier over time?" — a real concern
+# for packages like lodash, moment, three.js.
+@mcp.tool(
+    name="get_bundle_size_history",
+    description=(
+        "Get the bundle-size history across many versions of an npm package. "
+        "Reports whether the package has grown, shrunk, or stayed flat."
+    ),
+)
+async def get_bundle_size_history(
+    package_name: str = Field(description="Exact npm package name."),
+    limit: int = Field(
+        default=10,
+        description="Max number of historical versions to report (1–30).",
+    ),
+) -> dict:
+    safe_limit = max(1, min(int(limit), 30))
+    url = f"{BUNDLEPHOBIA}/package-history?package={package_name}&record-count={safe_limit}"
+    try:
+        async with httpx.AsyncClient(timeout=BUNDLEPHOBIA_TIMEOUT) as client:
+            response = await client.get(url)
+    except httpx.RequestError as exc:
+        raise ValueError(f"Could not reach bundlephobia: {exc}") from exc
+
+    if response.status_code == 404:
+        raise ValueError(f"bundlephobia has no data for '{package_name}'.")
+    if response.status_code >= 400:
+        raise ValueError(
+            f"bundlephobia returned HTTP {response.status_code} for '{package_name}'."
+        )
+
+    data = response.json()
+    # Response is a map of version -> {size, gzip, version, ...}.
+    entries = []
+    for version, info in data.items():
+        if not isinstance(info, dict):
+            continue
+        size = info.get("size")
+        gzip = info.get("gzip")
+        entries.append({
+            "version":    version,
+            "size_bytes": size,
+            "size_human": _format_bytes(size),
+            "gzip_bytes": gzip,
+            "gzip_human": _format_bytes(gzip),
+        })
+
+    # Sort by semver — newest first so "history" reads top-to-bottom = new-to-old.
+    def _key(e: dict) -> tuple:
+        parsed = _parse_semver(e["version"])
+        return parsed if parsed is not None else (0, 0, 0)
+    entries.sort(key=_key, reverse=True)
+
+    # bundlephobia often returns stale entries with no size — drop those.
+    valid_entries = [e for e in entries if e.get("size_bytes") is not None]
+    # Honour the caller's limit on entries with real data.
+    trimmed = valid_entries[:safe_limit]
+
+    # Compute trend: compare the oldest vs newest version size in the window.
+    trend = "unknown"
+    delta_pct = None
+    if len(trimmed) >= 2:
+        old_size = trimmed[-1]["size_bytes"]
+        new_size = trimmed[0]["size_bytes"]
+        if old_size and new_size:
+            delta_pct = round(((new_size - old_size) / old_size) * 100, 1)
+            if delta_pct > 15:
+                trend = "growing"
+            elif delta_pct < -15:
+                trend = "shrinking"
+            else:
+                trend = "stable"
+
+    return {
+        "package":       package_name,
+        "count":         len(trimmed),
+        "total_returned_by_api": len(entries),
+        "skipped_unmeasured":    len(entries) - len(valid_entries),
+        "trend":         trend,
+        "delta_percent": delta_pct,
+        "history":       trimmed,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 42: check_treeshakeable
+# ---------------------------------------------------------------------------
+# A package is "tree-shakeable" when bundlers can drop unused exports. Two
+# conditions in package.json make this possible:
+#   1. "module" field (or "exports.import") points to an ESM build  (hasJSModule)
+#   2. "sideEffects": false                                         (hasSideEffects)
+# Both are needed — CJS-only packages can't be tree-shaken, and packages
+# with side effects prevent bundlers from dropping their code.
+@mcp.tool(
+    name="check_treeshakeable",
+    description=(
+        "Check if an npm package is tree-shakeable (ships ES modules AND "
+        "declares no side-effects). Returns a verdict plus the reasoning."
+    ),
+)
+async def check_treeshakeable(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_bundle_size(package_name, version)
+
+    has_esm        = bool(data.get("hasJSModule"))
+    has_side_eff   = data.get("hasSideEffects", True)
+    # hasSideEffects can be True, False, or a list/regex of file globs.
+    # We treat anything that isn't explicit-False as "yes, there are side-effects".
+    declares_none  = has_side_eff is False
+
+    treeshakeable = has_esm and declares_none
+
+    if treeshakeable:
+        reason = "Ships ES modules AND declares no side-effects."
+    elif not has_esm and not declares_none:
+        reason = "No ES module build and side-effects not declared as false."
+    elif not has_esm:
+        reason = "No ES module build — bundlers cannot drop unused exports."
+    else:
+        reason = "ES module build present, but side-effects are not declared as false."
+
+    return {
+        "package":      data.get("name"),
+        "version":      data.get("version"),
+        "treeshakeable": treeshakeable,
+        "has_esm":      has_esm,
+        "side_effects_declared_none": declares_none,
+        "reason":       reason,
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 43: compare_bundle_sizes
+# ---------------------------------------------------------------------------
+# Parallel bundlephobia lookups for a set of packages, then rank by gzipped
+# size. Classic use case: "axios vs fetch vs ky — which is lightest?"
+@mcp.tool(
+    name="compare_bundle_sizes",
+    description=(
+        "Compare the bundle sizes of 2–10 npm packages side by side. "
+        "Ranks by gzipped size (ascending) so the lightest wins."
+    ),
+)
+async def compare_bundle_sizes(
+    packages: list[str] = Field(
+        description=(
+            "List of 2–10 packages. Each entry can include a version: "
+            "'react', 'react@18.2.0', '@babel/core@^7'."
+        )
+    ),
+) -> dict:
+    if not packages or len(packages) < 2:
+        raise ValueError("Provide at least 2 packages to compare.")
+    if len(packages) > 10:
+        raise ValueError("compare_bundle_sizes supports at most 10 packages.")
+
+    async def _one(spec: str) -> dict:
+        # Split "name@version" — but preserve @scope/name.
+        at_idx = spec.rfind("@")
+        if at_idx > 0:
+            name, version = spec[:at_idx], spec[at_idx + 1:]
+        else:
+            name, version = spec, ""
+        try:
+            data = await _fetch_bundle_size(name, version)
+            return {
+                "name":       data.get("name", name),
+                "version":    data.get("version"),
+                "size_bytes": data.get("size"),
+                "size_human": _format_bytes(data.get("size")),
+                "gzip_bytes": data.get("gzip"),
+                "gzip_human": _format_bytes(data.get("gzip")),
+                "has_esm":    bool(data.get("hasJSModule")),
+            }
+        except ValueError as exc:
+            return {
+                "name": name,
+                "version": version,
+                "error": str(exc),
+            }
+
+    results = await asyncio.gather(*(_one(p) for p in packages))
+
+    # Rank on gzip (what actually reaches the user). Missing sizes go last.
+    def _rank_key(r: dict) -> tuple[int, int]:
+        has_data = 0 if "error" in r or r.get("gzip_bytes") is None else 1
+        return (-has_data, r.get("gzip_bytes") or 10**12)
+
+    ranked = sorted(results, key=_rank_key)
+    lightest = next((r for r in ranked if "error" not in r and r.get("gzip_bytes")), None)
+
+    return {
+        "count":    len(results),
+        "lightest": lightest.get("name") if lightest else None,
+        "ranking":  [
+            {
+                "rank": i,
+                **r,
+            }
+            for i, r in enumerate(ranked, 1)
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# TOOL 44: get_bundle_size_impact
+# ---------------------------------------------------------------------------
+# Same data as get_bundle_size but framed for the "should I add this dep?"
+# question. Calls out the transitive dependency count and gzipped weight
+# in a single sentence the reviewer can paste into a PR comment.
+@mcp.tool(
+    name="get_bundle_size_impact",
+    description=(
+        "Estimate the impact of adding an npm package to your bundle. "
+        "Returns sizes, transitive dep count, and a one-line reviewer summary."
+    ),
+)
+async def get_bundle_size_impact(
+    package_name: str = Field(description="Exact npm package name."),
+    version: str = Field(
+        default="",
+        description="Exact version. Leave empty for the latest version.",
+    ),
+) -> dict:
+    data = await _fetch_bundle_size(package_name, version)
+
+    size = data.get("size") or 0
+    gzip = data.get("gzip") or 0
+    dep_count = data.get("dependencyCount", 0)
+
+    # Impact tier based on gzipped size — mirrors what most reviewers
+    # intuitively worry about (a 50 KB gzip dep is a lot; a 1 KB dep is noise).
+    if gzip >= 100_000:
+        impact = "heavy"
+    elif gzip >= 30_000:
+        impact = "moderate"
+    elif gzip >= 5_000:
+        impact = "small"
+    else:
+        impact = "tiny"
+
+    # One-line summary ready for a PR comment.
+    summary = (
+        f"Adding {data.get('name')}@{data.get('version')} will add "
+        f"~{_format_bytes(gzip)} gzipped "
+        f"({_format_bytes(size)} minified) to your bundle, pulling in "
+        f"{dep_count} transitive dependencies. Impact: {impact}."
+    )
+
+    return {
+        "package":         data.get("name"),
+        "version":         data.get("version"),
+        "size_bytes":      size,
+        "size_human":      _format_bytes(size),
+        "gzip_bytes":      gzip,
+        "gzip_human":      _format_bytes(gzip),
+        "dependency_count": dep_count,
+        "impact":          impact,
+        "summary":         summary,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Run the server
 # ---------------------------------------------------------------------------
