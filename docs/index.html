@@ -694,7 +694,14 @@
       <div class="sidebar-title">Getting Started</div>
       <a href="#installation">Installation</a>
       <a href="#configuration">Configuration</a>
-      <a href="#register-claude-code">Register with Claude Code</a>
+      <a href="#register">Register with an MCP Client</a>
+      <a href="#register-claude-code" class="sub">Claude Code</a>
+      <a href="#register-claude-desktop" class="sub">Claude Desktop</a>
+      <a href="#register-cursor" class="sub">Cursor</a>
+      <a href="#register-cline" class="sub">Cline (VS Code)</a>
+      <a href="#register-windsurf" class="sub">Windsurf</a>
+      <a href="#register-copilot" class="sub">GitHub Copilot</a>
+      <a href="#register-generic" class="sub">Generic / Other</a>
       <a href="#run-cli">Run the CLI Chat</a>
     </div>
 
@@ -936,51 +943,215 @@ USE_UV=<span class="str">"1"</span>        <span class="cmt"># spawns the server
     </section>
 
     <!-- ========== REGISTER WITH CLAUDE CODE ========== -->
-    <section class="doc-section" id="register-claude-code">
-      <h2>Register with Claude Code</h2>
+    <section class="doc-section" id="register">
+      <h2>Register with an MCP Client</h2>
       <p>
-        Claude Code itself is an MCP client. Once registered, Depverse's 36 tools are available in every Claude Code
-        conversation — no API key needed on your side, no custom CLI.
+        Depverse is a <strong>standard MCP server</strong>. Any MCP-aware client can launch it over stdio and use its
+        36 tools. Pick your client below for a copy-paste config.
       </p>
 
-      <h3>Option A — Project scope (recommended)</h3>
-      <p>
-        Writes a <code>.mcp.json</code> file in the current directory. Server is only active when Claude Code is opened
-        inside this folder.
-      </p>
-<pre>cd /path/to/Depverse
+      <div class="callout info">
+        <strong>Common config shape.</strong> Every client just needs to know how to launch the server.
+        Two fields always matter: the <strong>command</strong> (<code>uv</code>) and the <strong>absolute path</strong>
+        to your cloned Depverse folder. Replace <code>/absolute/path/to/Depverse</code> below with your real path.
+      </div>
+    </section>
+
+    <section class="doc-section" id="register-claude-code">
+      <h3>Claude Code</h3>
+      <p>The CLI handles registration for you — no JSON editing required.</p>
+
+      <h4>Project scope (recommended)</h4>
+      <p>Writes <code>.mcp.json</code> into the current directory. Server active only when Claude Code is opened here.</p>
+<pre>cd /absolute/path/to/Depverse
 claude mcp add Depverse <span class="kw">--scope</span> project \
   <span class="kw">--</span> uv --directory "$(pwd)" run mcp_server.py</pre>
 
-      <h3>Option B — User scope (everywhere)</h3>
-      <p>Adds it to your Claude Code user config. Available in every project on this machine.</p>
+      <h4>User scope (everywhere)</h4>
 <pre>claude mcp add Depverse <span class="kw">--scope</span> user \
   <span class="kw">--</span> uv --directory "/absolute/path/to/Depverse" run mcp_server.py</pre>
 
-      <h3>Verify</h3>
-      <p>Restart Claude Code, then run:</p>
-<pre>/mcp
+      <h4>Verify</h4>
+<pre><span class="cmt"># restart Claude Code, then:</span>
+/mcp
+<span class="cmt"># should list: Depverse → 36 tools</span></pre>
 
-<span class="cmt"># should list: Depverse   → 36 tools</span></pre>
-
-      <h3>Other useful commands</h3>
+      <h4>Other Claude Code commands</h4>
       <div class="cards-grid">
-        <div class="card">
-          <div class="card-name">claude mcp list</div>
-          <div class="card-desc">Show all registered MCP servers.</div>
-        </div>
-        <div class="card">
-          <div class="card-name">claude mcp get Depverse</div>
-          <div class="card-desc">Show the launch config for one server.</div>
-        </div>
-        <div class="card">
-          <div class="card-name">claude mcp remove Depverse</div>
-          <div class="card-desc">Unregister the server.</div>
-        </div>
-        <div class="card">
-          <div class="card-name">/mcp</div>
-          <div class="card-desc">Slash command — inspect servers inside Claude Code.</div>
-        </div>
+        <div class="card"><div class="card-name">claude mcp list</div><div class="card-desc">Show all registered MCP servers.</div></div>
+        <div class="card"><div class="card-name">claude mcp get Depverse</div><div class="card-desc">Show the launch config.</div></div>
+        <div class="card"><div class="card-name">claude mcp remove Depverse</div><div class="card-desc">Unregister the server.</div></div>
+        <div class="card"><div class="card-name">/mcp</div><div class="card-desc">Inspect servers inside Claude Code.</div></div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="register-claude-desktop">
+      <h3>Claude Desktop</h3>
+      <p>Edit Claude Desktop's config file directly — the app reads it on startup.</p>
+
+      <h4>Config file location</h4>
+      <ul>
+        <li><strong>macOS</strong>: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
+        <li><strong>Windows</strong>: <code>%APPDATA%\Claude\claude_desktop_config.json</code></li>
+        <li><strong>Linux</strong>: <code>~/.config/Claude/claude_desktop_config.json</code></li>
+      </ul>
+
+      <h4>Add Depverse to <code>mcpServers</code></h4>
+<pre>{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"Depverse"</span>: {
+      <span class="str">"command"</span>: <span class="str">"uv"</span>,
+      <span class="str">"args"</span>: [
+        <span class="str">"--directory"</span>,
+        <span class="str">"/absolute/path/to/Depverse"</span>,
+        <span class="str">"run"</span>,
+        <span class="str">"mcp_server.py"</span>
+      ]
+    }
+  }
+}</pre>
+      <p><strong>Restart Claude Desktop.</strong> The tools appear in the 🔌 menu next to the chat input.</p>
+    </section>
+
+    <section class="doc-section" id="register-cursor">
+      <h3>Cursor</h3>
+      <p>
+        Cursor has native MCP support. Add the config via
+        <strong>Settings → Cursor Settings → MCP → Add new MCP server</strong>, or edit the JSON directly.
+      </p>
+
+      <h4>Config file location</h4>
+      <ul>
+        <li><strong>Project-specific</strong>: <code>.cursor/mcp.json</code> in the project root</li>
+        <li><strong>Global</strong>: <code>~/.cursor/mcp.json</code></li>
+      </ul>
+
+      <h4>Config</h4>
+<pre>{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"Depverse"</span>: {
+      <span class="str">"command"</span>: <span class="str">"uv"</span>,
+      <span class="str">"args"</span>: [
+        <span class="str">"--directory"</span>,
+        <span class="str">"/absolute/path/to/Depverse"</span>,
+        <span class="str">"run"</span>,
+        <span class="str">"mcp_server.py"</span>
+      ]
+    }
+  }
+}</pre>
+      <p>Reload Cursor. Depverse's tools appear in the Agent panel's tool list — toggle them on/off as needed.</p>
+    </section>
+
+    <section class="doc-section" id="register-cline">
+      <h3>Cline (VS Code extension)</h3>
+      <p>
+        In VS Code, open the <strong>Cline</strong> side panel → click the <strong>MCP Servers</strong>
+        icon (the server icon at the top) → <strong>Configure MCP Servers</strong>.
+      </p>
+      <p>That opens <code>cline_mcp_settings.json</code>. Add:</p>
+<pre>{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"Depverse"</span>: {
+      <span class="str">"command"</span>: <span class="str">"uv"</span>,
+      <span class="str">"args"</span>: [
+        <span class="str">"--directory"</span>,
+        <span class="str">"/absolute/path/to/Depverse"</span>,
+        <span class="str">"run"</span>,
+        <span class="str">"mcp_server.py"</span>
+      ]
+    }
+  }
+}</pre>
+      <p>Cline picks up changes automatically — no restart needed.</p>
+    </section>
+
+    <section class="doc-section" id="register-windsurf">
+      <h3>Windsurf</h3>
+      <p>
+        In Windsurf, open <strong>Settings → Cascade → Model Context Protocol</strong>, or edit the config file
+        directly.
+      </p>
+
+      <h4>Config file</h4>
+      <ul>
+        <li><code>~/.codeium/windsurf/mcp_config.json</code></li>
+      </ul>
+<pre>{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"Depverse"</span>: {
+      <span class="str">"command"</span>: <span class="str">"uv"</span>,
+      <span class="str">"args"</span>: [
+        <span class="str">"--directory"</span>,
+        <span class="str">"/absolute/path/to/Depverse"</span>,
+        <span class="str">"run"</span>,
+        <span class="str">"mcp_server.py"</span>
+      ]
+    }
+  }
+}</pre>
+      <p>Restart Cascade (or Windsurf) to load the server.</p>
+    </section>
+
+    <section class="doc-section" id="register-copilot">
+      <h3>GitHub Copilot (VS Code)</h3>
+      <p>
+        VS Code's <strong>Copilot Chat</strong> supports MCP servers via workspace or user settings. Add the
+        config under the <code>"mcp"</code> key.
+      </p>
+
+      <h4>Workspace config</h4>
+      <p>Create <code>.vscode/mcp.json</code> in your project:</p>
+<pre>{
+  <span class="str">"servers"</span>: {
+    <span class="str">"Depverse"</span>: {
+      <span class="str">"type"</span>: <span class="str">"stdio"</span>,
+      <span class="str">"command"</span>: <span class="str">"uv"</span>,
+      <span class="str">"args"</span>: [
+        <span class="str">"--directory"</span>,
+        <span class="str">"/absolute/path/to/Depverse"</span>,
+        <span class="str">"run"</span>,
+        <span class="str">"mcp_server.py"</span>
+      ]
+    }
+  }
+}</pre>
+      <p>
+        Reload VS Code. In the Copilot Chat side panel, open the tools menu — Depverse tools appear under
+        <code>Depverse</code>. Toggle them on before asking questions.
+      </p>
+
+      <div class="callout warn">
+        MCP support in GitHub Copilot is still evolving — the exact path and schema may shift between VS Code
+        insiders and stable releases. Check the <a href="https://code.visualstudio.com/docs/copilot/chat/mcp-servers" target="_blank" rel="noopener">official VS Code MCP docs</a> if the above doesn't load.
+      </div>
+    </section>
+
+    <section class="doc-section" id="register-generic">
+      <h3>Generic / Other MCP Clients</h3>
+      <p>
+        Any client that speaks MCP over stdio can use Depverse. The launch command is always the same:
+      </p>
+<pre><span class="cmt"># command</span>
+uv
+
+<span class="cmt"># args</span>
+--directory /absolute/path/to/Depverse run mcp_server.py</pre>
+      <p>Or, without <code>uv</code>:</p>
+<pre><span class="cmt"># command</span>
+python
+
+<span class="cmt"># args</span>
+/absolute/path/to/Depverse/mcp_server.py</pre>
+      <p>
+        Make sure the Python environment used has Depverse installed (<code>pip install -e .</code> in the repo root).
+        The server speaks JSON-RPC 2.0 over stdio — no network ports, no daemon.
+      </p>
+
+      <div class="callout info">
+        <strong>Note on OpenAI / Codex:</strong> OpenAI's API and products don't natively support MCP (they use
+        their own function-calling format). Depverse won't register directly with those tools — you'd need an
+        MCP-to-function-calling adapter.
       </div>
     </section>
 
