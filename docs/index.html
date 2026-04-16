@@ -693,7 +693,6 @@
     <div class="sidebar-section">
       <div class="sidebar-title">Getting Started</div>
       <a href="#installation">Installation</a>
-      <a href="#configuration">Configuration</a>
       <a href="#register">Register with an MCP Client</a>
       <a href="#register-claude-code" class="sub">Claude Code</a>
       <a href="#register-claude-desktop" class="sub">Claude Desktop</a>
@@ -921,24 +920,6 @@ uv pip install -e .</pre>
 <pre>uv run test_npm_tool.py</pre>
           </div>
         </div>
-      </div>
-
-      <h3 id="configuration">Configuration <span style="color: var(--muted); font-size: 16px; font-weight: 400;">— optional, CLI chat only</span></h3>
-      <p>
-        The MCP server itself needs <strong>no configuration</strong> — it has no secrets, no tokens, no state.
-        Just register it with Claude Code (<a href="#register-claude-code">below</a>) and you're done.
-      </p>
-      <p>
-        A <code>.env</code> file is only required if you want to use the bundled <a href="#run-cli">CLI chat</a>
-        (<code>main.py</code>), which calls the Anthropic API directly. In that case, create <code>.env</code>
-        in the project root:
-      </p>
-<pre><span class="cmt"># .env — only needed for main.py (CLI chat)</span>
-ANTHROPIC_API_KEY=<span class="str">"sk-ant-..."</span>
-CLAUDE_MODEL=<span class="str">"claude-sonnet-4-5"</span>
-USE_UV=<span class="str">"1"</span>        <span class="cmt"># spawns the server with `uv run`</span></pre>
-      <div class="callout warn">
-        <strong>Do not commit your <code>.env</code>.</strong> A <code>.gitignore</code> entry is included by default.
       </div>
     </section>
 
